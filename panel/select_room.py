@@ -86,6 +86,25 @@ def _pass(ranked, size, used_families, seated_tags, strict):
     return picked
 
 
+def load_panelists(db: str) -> list:
+    conn = sqlite3.connect(db)
+    try:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, name, lens, attributes, family, tags FROM panelists"
+        ).fetchall()
+    finally:
+        conn.close()
+    if not rows:
+        raise ValueError("panelists table is empty (run seed.py first?)")
+    return [
+        {"id": r["id"], "name": r["name"], "lens": r["lens"],
+         "attributes": json.loads(r["attributes"]), "family": r["family"],
+         "tags": json.loads(r["tags"])}
+        for r in rows
+    ]
+
+
 def load_excluded(paths: list) -> set:
     excluded = set()
     for path in paths:
@@ -120,26 +139,11 @@ def main(argv=None) -> int:
               file=sys.stderr)
         return 2
     try:
-        conn = sqlite3.connect(args.db)
-        conn.row_factory = sqlite3.Row
-        rows = conn.execute(
-            "SELECT id, name, lens, attributes, family, tags FROM panelists"
-        ).fetchall()
-        conn.close()
-    except sqlite3.Error as exc:
+        panelists = load_panelists(args.db)
+    except (sqlite3.Error, ValueError) as exc:
         print(f"error: cannot load panelists (run seed.py first?): {exc}",
               file=sys.stderr)
         return 2
-    if not rows:
-        print("error: panelists table is empty (run seed.py first?)",
-              file=sys.stderr)
-        return 2
-    panelists = [
-        {"id": r["id"], "name": r["name"], "lens": r["lens"],
-         "attributes": json.loads(r["attributes"]), "family": r["family"],
-         "tags": json.loads(r["tags"])}
-        for r in rows
-    ]
 
     tensions = [t.strip() for t in args.tensions.split(",") if t.strip()]
     try:

@@ -58,6 +58,34 @@ Skills live in `skills/` (one `SKILL.md` each plus
 `panel/`. Copy a skill directory into your agent's skills folder, or install
 directly if your harness supports it (`muse skills install skills/debate`).
 
+## MCP server
+
+Everything above is also an MCP server (stdio). Eight tools: `skillflow_init`,
+`skillflow_add_node`, `skillflow_add_edge`, `skillflow_show`, `skillflow_run`,
+`skillflow_status`, `panel_seed`, `panel_select_room`.
+
+```sh
+pip install ".[mcp]"
+python -m skillflow.mcp_server
+```
+
+Example client config (stdio):
+
+```json
+{
+  "mcpServers": {
+    "skillflow": {
+      "command": "python",
+      "args": ["-m", "skillflow.mcp_server"],
+      "cwd": "/path/to/skillflow"
+    }
+  }
+}
+```
+
+Note: gate nodes that prompt on a terminal fail closed without one — a `run`
+containing an unanswered gate stops there, by design.
+
 ## Develop
 
 ```sh
