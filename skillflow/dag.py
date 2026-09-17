@@ -129,6 +129,12 @@ class Flow:
 
     def run(self) -> int:
         ordered = self.order()
+        try:
+            return self._run_ordered(ordered)
+        except sqlite3.Error as exc:
+            raise FlowError(f"database is busy or locked: {exc}") from exc
+
+    def _run_ordered(self, ordered: list) -> int:
         started = _now()
         # Runs left behind by a killed process never finish on their own;
         # mark them interrupted so they stop masquerading as the latest run.

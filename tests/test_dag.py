@@ -69,6 +69,12 @@ class DagTest(unittest.TestCase):
         with self.assertRaises(FlowError):
             self.flow.status()
 
+    def test_run_db_error_is_flow_error(self):
+        self.flow.add_node("a", "echo hi")
+        self.flow.conn.execute("DROP TABLE runs")
+        with self.assertRaises(FlowError):
+            self.flow.run()
+
     def test_status_lists_nodes_in_execution_order(self):
         self.flow.add_node("first", "echo one")
         self.flow.add_node("second", "echo two")

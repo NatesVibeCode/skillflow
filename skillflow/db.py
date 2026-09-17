@@ -34,8 +34,8 @@ CREATE TABLE IF NOT EXISTS node_results (
 """
 
 
-def connect(path: str) -> sqlite3.Connection:
-    conn = sqlite3.connect(path)
+def connect(path: str, timeout: float = 30.0) -> sqlite3.Connection:
+    conn = sqlite3.connect(path, timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
