@@ -1,5 +1,6 @@
 """Core DAG operations: nodes, edges, topological run, status."""
 
+import sqlite3
 import subprocess
 from datetime import datetime, timezone
 
@@ -17,7 +18,10 @@ def _now() -> str:
 class Flow:
     def __init__(self, path: str):
         self.path = path
-        self.conn = _db.connect(path)
+        try:
+            self.conn = _db.connect(path)
+        except (sqlite3.Error, OSError) as exc:
+            raise FlowError(f"cannot open database {path!r}: {exc}") from exc
 
     def close(self):
         self.conn.close()
@@ -126,6 +130,19 @@ class Flow:
     def run(self) -> int:
         ordered = self.order()
         started = _now()
+        # Runs left behind by a killed process never finish on their own;
+        # mark them interrupted so they stop masquerading as the latest run.
+        self.conn.execute(
+            "UPDATE runs SET status = 'interrupted', finished_at = ? "
+            "WHERE status = 'running'",
+            (started,),
+        )
+        self.conn.execute(
+            """UPDATE node_results SET status = 'interrupted', finished_at = ?
+               WHERE status = 'running'""",
+            (started,),
+        )
+        self.conn.commit()
         cur = self.conn.execute(
             "INSERT INTO runs (started_at, status) VALUES (?, 'running')", (started,)
         )
@@ -194,7 +211,7 @@ class Flow:
                    FROM node_results r
                    JOIN nodes n ON n.id = r.node_id
                    WHERE r.run_id = ?
-                   ORDER BY r.started_at""",
+                   ORDER BY r.rowid""",
                 (run_id,),
             )
         ]

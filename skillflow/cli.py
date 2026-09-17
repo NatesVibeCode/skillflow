@@ -15,8 +15,12 @@ def _flow(args) -> Flow:
 
 
 def cmd_init(args) -> int:
-    with _flow(args):
-        pass
+    try:
+        with _flow(args):
+            pass
+    except FlowError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     print(f"initialized {args.db}")
     return 0
 
@@ -44,8 +48,12 @@ def cmd_add_edge(args) -> int:
 
 
 def cmd_show(args) -> int:
-    with _flow(args) as flow:
-        print(json.dumps({"nodes": flow.nodes(), "edges": flow.edges()}, indent=2))
+    try:
+        with _flow(args) as flow:
+            print(json.dumps({"nodes": flow.nodes(), "edges": flow.edges()}, indent=2))
+    except FlowError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     return 0
 
 

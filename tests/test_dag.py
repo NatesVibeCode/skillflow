@@ -69,6 +69,32 @@ class DagTest(unittest.TestCase):
         with self.assertRaises(FlowError):
             self.flow.status()
 
+    def test_status_lists_nodes_in_execution_order(self):
+        self.flow.add_node("first", "echo one")
+        self.flow.add_node("second", "echo two")
+        self.flow.add_edge("first", "second")
+        result = self.flow.status(self.flow.run())
+        self.assertEqual(
+            [n["name"] for n in result["nodes"]], ["first", "second"]
+        )
+
+    def test_stale_running_run_marked_interrupted(self):
+        self.flow.conn.execute(
+            "INSERT INTO runs (started_at, status) VALUES ('stale', 'running')"
+        )
+        self.flow.conn.commit()
+        self.flow.add_node("a", "echo hi")
+        self.flow.run()
+        rows = self.flow.conn.execute(
+            "SELECT status FROM runs ORDER BY id"
+        ).fetchall()
+        self.assertEqual([r["status"] for r in rows], ["interrupted", "ok"])
+
+    def test_unopenable_database(self):
+        bad = os.path.join(self.tmp.name, "no-such-dir", "x.db")
+        with self.assertRaises(FlowError):
+            Flow(bad)
+
 
 if __name__ == "__main__":
     unittest.main()
