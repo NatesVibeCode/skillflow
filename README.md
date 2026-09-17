@@ -104,6 +104,36 @@ you define (`skillflow_run` is annotated destructive for exactly that
 reason). Run it locally, for your own agents only — do not expose it to
 untrusted clients or networks.
 
+### Client wiring: Codex + Muse
+
+Codex (`~/.codex/config.toml`, TOML):
+
+```toml
+[mcp_servers.skillflow]
+command = "python3"
+args = ["-m", "skillflow.mcp_server"]
+cwd = "/path/to/skillflow"
+```
+
+Muse (`~/.config/muse/settings.json`, JSON under `mcpServers`):
+
+```json
+{
+  "mcpServers": {
+    "skillflow": {
+      "command": "python3",
+      "args": ["-m", "skillflow.mcp_server"],
+      "cwd": "/path/to/skillflow"
+    }
+  }
+}
+```
+
+Point `cwd` at a repo checkout (panel tools need `panel/` beside the
+engine), or `pip install` the package and drop `cwd` for engine-only use.
+Muse documents streamable-HTTP entries; the stdio entry above is confirmed
+live before relying on it.
+
 ## Develop
 
 ```sh
