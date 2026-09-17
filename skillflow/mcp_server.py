@@ -13,6 +13,7 @@ sys.path.insert(0, PANEL_DIR)
 
 try:
     from mcp.server.fastmcp import FastMCP  # noqa: E402
+    from mcp.types import ToolAnnotations  # noqa: E402
 except ImportError:
     print("error: the 'mcp' package is not installed.",
           "Install the server extra: pip install '.[mcp]'",
@@ -20,6 +21,15 @@ except ImportError:
     raise SystemExit(2)
 
 from .dag import Flow, FlowError  # noqa: E402
+
+READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False,
+                            idempotentHint=True, openWorldHint=False)
+WRITE_SAFE = ToolAnnotations(readOnlyHint=False, destructiveHint=False,
+                             idempotentHint=False, openWorldHint=False)
+WRITE_IDEMPOTENT = ToolAnnotations(readOnlyHint=False, destructiveHint=False,
+                                   idempotentHint=True, openWorldHint=False)
+EXECUTES_SHELL = ToolAnnotations(readOnlyHint=False, destructiveHint=True,
+                                 idempotentHint=False, openWorldHint=False)
 
 
 def _panel_file(name: str) -> str:
@@ -61,7 +71,7 @@ def _trim_run(result: dict) -> dict:
     return result
 
 
-@mcp.tool()
+@mcp.tool(annotations=WRITE_IDEMPOTENT)
 def skillflow_init(db: str = "skillflow.db") -> dict:
     """Create a skillflow SQLite database (idempotent)."""
     try:
@@ -72,7 +82,7 @@ def skillflow_init(db: str = "skillflow.db") -> dict:
     return {"ok": True, "db": db}
 
 
-@mcp.tool()
+@mcp.tool(annotations=WRITE_SAFE)
 def skillflow_add_node(db: str = "skillflow.db", name: str = "",
                        cmd: str = "") -> dict:
     """Add a node (a shell command) to the DAG."""
@@ -84,7 +94,7 @@ def skillflow_add_node(db: str = "skillflow.db", name: str = "",
     return {"ok": True, "id": node_id, "name": name}
 
 
-@mcp.tool()
+@mcp.tool(annotations=WRITE_SAFE)
 def skillflow_add_edge(db: str = "skillflow.db", from_node: str = "",
                        to_node: str = "") -> dict:
     """Add a dependency edge (from_node runs before to_node). Rejects cycles."""
@@ -96,7 +106,7 @@ def skillflow_add_edge(db: str = "skillflow.db", from_node: str = "",
     return {"ok": True, "from": from_node, "to": to_node}
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def skillflow_show(db: str = "skillflow.db") -> dict:
     """Show the DAG's nodes and edges."""
     with Flow(db) as flow:
@@ -114,7 +124,7 @@ def _run_common(db: str, run: int | None, execute: bool) -> dict:
     return _trim_run(result)
 
 
-@mcp.tool()
+@mcp.tool(annotations=EXECUTES_SHELL)
 def skillflow_run(db: str = "skillflow.db") -> dict:
     """Execute the DAG in topological order and return the run record.
 
@@ -128,7 +138,7 @@ def skillflow_run(db: str = "skillflow.db") -> dict:
     return _run_common(db, None, execute=True)
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def skillflow_status(db: str = "skillflow.db", run: int | None = None) -> dict:
     """Show the latest run, or the given run id, with per-node results.
 
@@ -139,7 +149,7 @@ def skillflow_status(db: str = "skillflow.db", run: int | None = None) -> dict:
     return _run_common(db, run, execute=False)
 
 
-@mcp.tool()
+@mcp.tool(annotations=WRITE_IDEMPOTENT)
 def panel_seed(db: str = "skillflow.db") -> dict:
     """Seed the panelists table in a session DB. Run once before selecting."""
     try:
@@ -152,7 +162,7 @@ def panel_seed(db: str = "skillflow.db") -> dict:
     return {"ok": True, "panelists": count, "db": db}
 
 
-@mcp.tool()
+@mcp.tool(annotations=READ_ONLY)
 def panel_select_room(db: str = "skillflow.db", tensions: str = "",
                       size: int = 4, exclude_ids: list[str] | None = None) -> dict:
     """Seat a panel room from the 128-person roster in the session DB.

@@ -99,6 +99,11 @@ tools work fine from an installed copy.)
 Note: gate nodes that prompt on a terminal fail closed without one — a `run`
 containing an unanswered gate stops there, by design.
 
+Trust boundary: this server executes arbitrary shell commands from the DAGs
+you define (`skillflow_run` is annotated destructive for exactly that
+reason). Run it locally, for your own agents only — do not expose it to
+untrusted clients or networks.
+
 ## Develop
 
 ```sh

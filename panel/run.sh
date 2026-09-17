@@ -27,6 +27,14 @@ case "$SKILL" in
   *) echo "error: unknown skill '$SKILL'" >&2; exit 2 ;;
 esac
 
+case "$ROUNDS" in
+  ''|*[!0-9]*)
+    echo "error: rounds must be a number 1-8, got '$ROUNDS'" >&2; exit 2 ;;
+esac
+if [ "$ROUNDS" -lt 1 ] || [ "$ROUNDS" -gt 8 ]; then
+  echo "error: rounds must be 1-8, got '$ROUNDS'" >&2; exit 2
+fi
+
 if [ -n "${SKILLFLOW_CMD:-}" ]; then
   # shellcheck disable=SC2206
   SF=($SKILLFLOW_CMD)
