@@ -6,9 +6,9 @@
 # stop every round until a person has done the work and approved the record.
 #
 # Usage: panel/run.sh <skill> "<subject>" [rounds] [session-dir]
-#   skill    debate | brainstorm | reframe | review
-#   subject  claim | goal | frame | work-under-review
-#   rounds   debate/reframe only (default 3; brainstorm/review have fixed shape)
+#   skill    debate | brainstorm | reframe | review | add-skill
+#   subject  claim | goal | frame | work-under-review | new skill idea
+#   rounds   debate/reframe only (default 3; the rest have fixed shapes)
 #
 # Requires the `skillflow` CLI on PATH, or set SKILLFLOW_CMD.
 set -euo pipefail
@@ -21,7 +21,7 @@ PANEL_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 case "$SKILL" in
   debate|reframe) ROUNDS="${ROUNDS_ARG:-3}" ;;
-  brainstorm|review)
+  brainstorm|review|add-skill)
     ROUNDS=2
     if [ "$#" -ge 3 ]; then SESSION="$ROUNDS_ARG"; fi ;;
   *) echo "error: unknown skill '$SKILL'" >&2; exit 2 ;;
@@ -56,6 +56,12 @@ round_prompt() {
         echo "Read back intent in three layers (explicit, implied, hard constraints). Write intent.md, update tensions.txt. Continue?"
       else
         echo "Collide intent.md with the evidence using room-2.json. Write verdict.md (one line + gaps with owners). Continue?"
+      fi ;;
+    add-skill)
+      if [ "$1" = "1" ]; then
+        echo "Draft the SKILL.md and the run.sh diff with room-1.json. Write draft.md, update tensions.txt. Continue?"
+      else
+        echo "Validate (muse skills validate), test end to end via run.sh, grep for leaks. Write record.md. Continue?"
       fi ;;
   esac
 }

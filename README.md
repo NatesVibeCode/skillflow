@@ -41,8 +41,9 @@ and timestamps are stored per run.
 
 ## Panel skills
 
-Ships with four skills that run as skillflow DAGs: **debate**,
-**brainstorm**, **reframe**, **review**. Each session seats its rooms from a
+Ships with five skills that run as skillflow DAGs: **debate**,
+**brainstorm**, **reframe**, **review**, **add-skill**.
+Each session seats its rooms from a
 128-person panelist roster (semantic match, enforced diversity) and gates
 every round on a person's approval.
 
