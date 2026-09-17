@@ -10,7 +10,7 @@ license = { text = "MIT" }
 skillflow = "skillflow.cli:main"
 
 [project.optional-dependencies]
-mcp = ["mcp>=1.0"]
+mcp = ["mcp>=1.0,<2"]
 
 [build-system]
 requires = ["setuptools>=61"]

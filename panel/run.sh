@@ -63,6 +63,11 @@ round_prompt() {
 mkdir -p "$SESSION"
 cd "$SESSION"
 export SKILLFLOW_DB="$SESSION/skillflow.db"
+if [ -f "$SKILLFLOW_DB" ]; then
+  echo "error: session already exists at $SESSION;" \
+    "cd into it and run 'skillflow run' to retry, or use a fresh directory" >&2
+  exit 2
+fi
 
 echo "$SUBJECT" > subject.txt
 echo "$SUBJECT" > tensions.txt

@@ -8,11 +8,27 @@ import os
 import sys
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(REPO_ROOT, "panel"))
+PANEL_DIR = os.path.join(REPO_ROOT, "panel")
+sys.path.insert(0, PANEL_DIR)
 
-from mcp.server.fastmcp import FastMCP  # noqa: E402
+try:
+    from mcp.server.fastmcp import FastMCP  # noqa: E402
+except ImportError:
+    print("error: the 'mcp' package is not installed.",
+          "Install the server extra: pip install '.[mcp]'",
+          file=sys.stderr)
+    raise SystemExit(2)
 
 from .dag import Flow, FlowError  # noqa: E402
+
+
+def _panel_file(name: str) -> str:
+    path = os.path.join(PANEL_DIR, name)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(
+            f"panel data missing at {path}; the panel tools need a repo "
+            f"checkout (pip installs ship the engine only)")
+    return path
 
 mcp = FastMCP("skillflow")
 
@@ -126,11 +142,11 @@ def skillflow_status(db: str = "skillflow.db", run: int | None = None) -> dict:
 @mcp.tool()
 def panel_seed(db: str = "skillflow.db") -> dict:
     """Seed the panelists table in a session DB. Run once before selecting."""
-    import seed as seed_mod
-
     try:
-        count = seed_mod.seed(db, os.path.join(REPO_ROOT, "panel",
-                                               "panelists.json"))
+        source = _panel_file("panelists.json")
+        _panel_file("seed.py")
+        import seed as seed_mod
+        count = seed_mod.seed(db, source)
     except Exception as exc:  # noqa: BLE001 - surfaced as tool error
         return _err(exc)
     return {"ok": True, "panelists": count, "db": db}
@@ -148,11 +164,11 @@ def panel_select_room(db: str = "skillflow.db", tensions: str = "",
     earlier rooms' member ids to keep later rounds fresh. Requires
     panel_seed to have run once on this DB.
     """
-    import select_room as selector
-
     if not 3 <= size <= 5:
         return {"ok": False, "error": "--size must be 3-5"}
     try:
+        _panel_file("select_room.py")
+        import select_room as selector
         panelists = selector.load_panelists(db)
     except Exception as exc:  # noqa: BLE001 - surfaced as tool error
         return {"ok": False,

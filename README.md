@@ -58,6 +58,14 @@ Skills live in `skills/` (one `SKILL.md` each plus
 `panel/`. Copy a skill directory into your agent's skills folder, or install
 directly if your harness supports it (`muse skills install skills/debate`).
 
+Use a fresh session directory per run (`panel/run.sh` refuses to rebuild
+into an existing one). If a run stops at a gate, fix the inputs and restart
+the run in place — seeding is idempotent and selection is deterministic:
+
+```sh
+cd ./session1 && skillflow run
+```
+
 ## MCP server
 
 Everything above is also an MCP server (stdio). Eight tools: `skillflow_init`,
@@ -75,13 +83,17 @@ Example client config (stdio):
 {
   "mcpServers": {
     "skillflow": {
-      "command": "python",
+      "command": "python3",
       "args": ["-m", "skillflow.mcp_server"],
       "cwd": "/path/to/skillflow"
     }
   }
 }
 ```
+
+Run the server from a repo checkout: the panel tools need `panel/` next to
+the engine, and pip installs ship the engine only. (The six `skillflow_*`
+tools work fine from an installed copy.)
 
 Note: gate nodes that prompt on a terminal fail closed without one — a `run`
 containing an unanswered gate stops there, by design.
