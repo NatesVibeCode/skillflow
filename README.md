@@ -39,10 +39,30 @@ computed with Kahn's algorithm; cycles are rejected when an edge is added
 (and re-checked at run time). Node output (stdout + stderr), exit codes,
 and timestamps are stored per run.
 
+## Panel skills
+
+Ships with four skills that run as skillflow DAGs: **debate**,
+**brainstorm**, **reframe**, **review**. Each session seats its rooms from a
+128-person panelist roster (semantic match, enforced diversity) and gates
+every round on a person's approval.
+
+```sh
+panel/run.sh debate "ship it friday" 3 ./session1
+panel/run.sh brainstorm "<goal>" [session-dir]
+panel/run.sh reframe "<current frame>" [rounds] [session-dir]
+panel/run.sh review "<work under review>" [session-dir]
+```
+
+Skills live in `skills/` (one `SKILL.md` each plus
+`skills/_shared/`); the roster, selector, seeder, and runner live in
+`panel/`. Copy a skill directory into your agent's skills folder, or install
+directly if your harness supports it (`muse skills install skills/debate`).
+
 ## Develop
 
 ```sh
-python -m unittest discover -s tests -v
+python -m unittest discover -t . -s tests -v
+cd panel && python -m unittest test_select -v
 ```
 
 ## License
