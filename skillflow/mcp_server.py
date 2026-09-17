@@ -17,8 +17,32 @@ from .dag import Flow, FlowError  # noqa: E402
 mcp = FastMCP("skillflow")
 
 
+OUTPUT_LIMIT = 2000
+
+HINTS = [
+    ("would create a cycle", "Use skillflow_show to see the current edges."),
+    ("unknown node", "Use skillflow_show to list node names."),
+    ("unknown run", "Call skillflow_status without a run id for the latest."),
+    ("no runs yet", "Call skillflow_run first."),
+    ("cannot open database", "Check the db path; use skillflow_init to create it."),
+]
+
+
 def _err(exc: Exception) -> dict:
-    return {"ok": False, "error": str(exc)}
+    message = str(exc)
+    for needle, hint in HINTS:
+        if needle in message:
+            return {"ok": False, "error": message, "hint": hint}
+    return {"ok": False, "error": message}
+
+
+def _trim_run(result: dict) -> dict:
+    for node in result.get("nodes", []):
+        output = node.get("output") or ""
+        if len(output) > OUTPUT_LIMIT:
+            node["output"] = output[:OUTPUT_LIMIT]
+            node["truncated"] = True
+    return result
 
 
 @mcp.tool()
@@ -63,30 +87,40 @@ def skillflow_show(db: str = "skillflow.db") -> dict:
         return {"ok": True, "nodes": flow.nodes(), "edges": flow.edges()}
 
 
-@mcp.tool()
-def skillflow_run(db: str = "skillflow.db") -> dict:
-    """Execute the DAG in topological order. First failure stops downstream.
-    Gate nodes needing a terminal fail closed without one."""
+def _run_common(db: str, run: int | None, execute: bool) -> dict:
     try:
         with Flow(db) as flow:
-            run_id = flow.run()
+            run_id = flow.run() if execute else run
             result = flow.status(run_id)
     except FlowError as exc:
         return _err(exc)
     result["ok"] = True
-    return result
+    return _trim_run(result)
+
+
+@mcp.tool()
+def skillflow_run(db: str = "skillflow.db") -> dict:
+    """Execute the DAG in topological order and return the run record.
+
+    Use after defining nodes and edges with skillflow_add_node /
+    skillflow_add_edge. The first failing node stops downstream nodes;
+    the returned record shows per-node status, exit codes, and output
+    (trimmed to 2000 chars per node). Gate nodes that prompt on a
+    terminal fail closed without one — a run containing an unanswered
+    gate stops there, which is the correct outcome, not an error.
+    """
+    return _run_common(db, None, execute=True)
 
 
 @mcp.tool()
 def skillflow_status(db: str = "skillflow.db", run: int | None = None) -> dict:
-    """Show the latest run (or the given run id) with per-node results."""
-    try:
-        with Flow(db) as flow:
-            result = flow.status(run)
-    except FlowError as exc:
-        return _err(exc)
-    result["ok"] = True
-    return result
+    """Show the latest run, or the given run id, with per-node results.
+
+    Use to inspect a previous run without executing anything. Omit `run`
+    for the latest. Returns run status plus each executed node's status,
+    exit code, and trimmed output.
+    """
+    return _run_common(db, run, execute=False)
 
 
 @mcp.tool()
@@ -105,8 +139,15 @@ def panel_seed(db: str = "skillflow.db") -> dict:
 @mcp.tool()
 def panel_select_room(db: str = "skillflow.db", tensions: str = "",
                       size: int = 4, exclude_ids: list[str] | None = None) -> dict:
-    """Seat a panel room: semantic match on comma-separated tensions with
-    enforced diversity (one per family, 3-5 seats). Optionally excludes ids."""
+    """Seat a panel room from the 128-person roster in the session DB.
+
+    `tensions` is comma-separated situation topics (e.g.
+    "risk,measurement"); panelists are ranked by token overlap with their
+    tags, lens, and attributes, then diversity is enforced: one per family,
+    3-5 seats, near-duplicate tag sets skipped. Pass `exclude_ids` with
+    earlier rooms' member ids to keep later rounds fresh. Requires
+    panel_seed to have run once on this DB.
+    """
     import select_room as selector
 
     if not 3 <= size <= 5:
