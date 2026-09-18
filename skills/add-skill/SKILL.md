@@ -16,8 +16,15 @@ A new skill is three things: a thin `SKILL.md`, a DAG shape in
 panel/run.sh add-skill "<skill name: one line on what it does>" [session-dir]
 ```
 
-Round 1 drafts; round 2 validates and tests. Gates stop each round until a
-person approves.
+Run it as one session: you run the DAG, and you author every response.
+Nothing waits on a person or another session — there is no terminal prompt
+and no handoff.
+
+Round 1 drafts; round 2 validates and tests. Each round node is a stage
+boundary: it stores that round's response in `notes/round-N.md` and on the
+node result. `finalize` writes `final.md`, the final section with every
+stored response. A round with no response stops the run and names the file to
+write — write it and rerun in the same session.
 
 ## Rules for the new skill
 
@@ -27,6 +34,9 @@ person approves.
 - Body stays thin: what it is, the `panel/run.sh <id>` command, and the
   record format. The procedure goes in the graph (round prompts in
   `panel/run.sh`), never in prose.
+- No terminal prompts and no handoffs: one session runs the DAG and authors
+  each response. A round node is a stage boundary that stores the response
+  and stops the run when it is missing.
 - No mention of private systems, people, or history. Grep the draft for
   leaks before calling it done.
 - Fixed-shape skills (like brainstorm/review) take no rounds argument;

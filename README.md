@@ -44,8 +44,8 @@ and timestamps are stored per run.
 Ships with five skills that run as skillflow DAGs: **debate**,
 **brainstorm**, **reframe**, **review**, **add-skill**.
 Each session seats its rooms from a
-128-person panelist roster (semantic match, enforced diversity) and gates
-every round on a person's approval.
+128-person panelist roster (semantic match, enforced diversity), stores each
+round's response, and writes the final section.
 
 ```sh
 panel/run.sh debate "ship it friday" 3 ./session1
@@ -59,13 +59,24 @@ Skills live in `skills/` (one `SKILL.md` each plus
 `panel/`. Copy a skill directory into your agent's skills folder, or install
 directly if your harness supports it (`muse skills install skills/debate`).
 
+One session runs the whole DAG and authors every response — there is no
+terminal prompt and no handoff to another session. A `round-N` node is a
+machine-checked stage boundary: it stores the response you wrote for that
+round in `notes/round-N.md` and on the node result, and the run stops with
+the round's instruction when that response is missing. Write it and rerun;
+`finalize` then writes `final.md`, the final section with every stored
+response.
+
 Use a fresh session directory per run (`panel/run.sh` refuses to rebuild
-into an existing one). If a run stops at a gate, fix the inputs and restart
+into an existing one). After a stopped round, write the response and restart
 the run in place — seeding is idempotent and selection is deterministic:
 
 ```sh
 cd ./session1 && skillflow run
 ```
+
+Do not pipe the runner through `tail` or similar: that hides a stopped round
+and its nonzero exit code.
 
 ## MCP server
 
@@ -96,8 +107,9 @@ Run the server from a repo checkout: the panel tools need `panel/` next to
 the engine, and pip installs ship the engine only. (The six `skillflow_*`
 tools work fine from an installed copy.)
 
-Note: gate nodes that prompt on a terminal fail closed without one — a `run`
-containing an unanswered gate stops there, by design.
+Note: panel round nodes never prompt. A round with no response stops the run
+at that stage boundary — a `run` containing an unwritten round stops there,
+by design, and resumes when the response is written.
 
 Trust boundary: this server executes arbitrary shell commands from the DAGs
 you define (`skillflow_run` is annotated destructive for exactly that

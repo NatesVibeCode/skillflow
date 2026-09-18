@@ -18,8 +18,12 @@ panel/run.sh brainstorm "<goal>" [session-dir]
 ```
 
 The DAG runs two rounds: open the field (one approach per lens, at least
-five), gate, then thin it. A gate stops each round until a person approves
-the record.
+five), then thin it. Tensions are distilled before the first seat; the
+machine seats each room from them and checks your activation worksheet
+names every seated panelist. `tensions` extracts each record's
+`## New tensions` section into `tensions.txt` itself; empty or unchanged
+tensions end the session early. A boundary stops the run and names the
+file — write it and rerun in the same session.
 
 ## Record
 

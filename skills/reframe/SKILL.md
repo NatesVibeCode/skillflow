@@ -17,9 +17,13 @@ smaller, kinder, or truer than the old one.
 panel/run.sh reframe "<current frame>" [rounds] [session-dir]
 ```
 
-The DAG runs the passes: per round select a room, offer new frames, keep at
-most two, kill the rest out loud. A gate stops each round until a person
-approves the record.
+The DAG runs the passes: per round the machine seats a room from the
+distilled tensions (rooms immutable, earlier rooms excluded), checks your
+activation worksheet names every seated panelist, then gates the pass
+record. `tensions` extracts each record's `## New tensions` section into
+`tensions.txt` itself; empty or unchanged tensions end the session early.
+A boundary stops the run and names the file — write it and rerun in the
+same session.
 
 ## Record
 

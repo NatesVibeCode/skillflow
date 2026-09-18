@@ -18,9 +18,14 @@ smoothed over is a debt with no owner.
 panel/run.sh review "<work under review>" [session-dir]
 ```
 
-The DAG runs two rounds: read back intent in three layers (explicit, implied,
-hard constraints), gate, then collide intent with evidence and give the
-verdict. A gate stops each round until a person approves the record.
+The DAG runs two rounds: read back intent in three layers (explicit,
+implied, hard constraints), then collide intent with evidence and give the
+verdict. Tensions are distilled before the first seat; the machine seats
+each room and checks your activation worksheet names every seated
+panelist. `tensions` extracts each record's `## New tensions` section into
+`tensions.txt` itself; empty or unchanged tensions end the session early.
+A boundary stops the run and names the file — write it and rerun in the
+same session.
 
 ## Record
 
