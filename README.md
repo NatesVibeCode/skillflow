@@ -41,42 +41,60 @@ and timestamps are stored per run.
 
 ## Panel skills
 
-Ships with five skills that run as skillflow DAGs: **debate**,
-**brainstorm**, **reframe**, **review**, **add-skill**.
-Each session seats its rooms from a
-128-person panelist roster (semantic match, enforced diversity), stores each
-round's response, and writes the final section.
+Debate, brainstorm, review, and reframe run in the active conversation. Their
+prose methods do the intellectual work; a local skillflow DAG enforces the order
+and makes the session pause before moving on. Nothing launches another model.
+
+- **Debate:** ground → activate → crossfire → continue/finish → final.
+- **Brainstorm:** ground → activate → divergent field → activate → develop field →
+  final.
+- **Review:** ground → activate → intent → activate → evidence/deltas → final.
+- **Reframe:** ground → activate → stronger-shape field → lineup → continue/finish
+  → final. Generation and lineup have separate pauses.
+
+The session selects and activates lenses from the roster, shows the prose in the
+conversation, and authors every result. The DAG does not select the room, extract
+semantic tensions, decide whether an argument is good, or synthesize the answer.
+When prior decisions, corrections, rejections, or failures matter, the active
+session uses bounded semantic work-history recall during grounding. The current
+instruction and live sources govern. `rewind` archives affected artifacts and
+invalidates their dependent checkpoints when later evidence changes an earlier
+phase. A debate/reframe refusal still requires an honest final answer.
 
 ```sh
-panel/run.sh debate "ship it friday" 3 ./session1
-panel/run.sh brainstorm "<goal>" [session-dir]
-panel/run.sh reframe "<current frame>" [rounds] [session-dir]
-panel/run.sh review "<work under review>" [session-dir]
+bash panel/run.sh debate "ship it friday" 3 /tmp/my-debate
+# PAUSE ground: do the grounding in the current conversation; write ground.md.
+bash panel/run.sh resume /tmp/my-debate
+# PAUSE activate-1: perform that phase, save it, then resume again.
 ```
 
-Skills live in `skills/` (one `SKILL.md` each plus
-`skills/_shared/`); the roster, selector, seeder, and runner live in
-`panel/`. Copy a skill directory into your agent's skills folder, or install
-directly if your harness supports it (`muse skills install skills/debate`).
+Each new checkpoint returns control before accepting its artifact, even if a file
+was prefilled. Exit 1 with `PAUSE` means the current session should do the named
+work and resume, not ask a human to fill a file or approve the next phase. Do not
+batch-author future phases. `final.md` is session-authored, never a machine
+concatenation. The receipts prove sequence, not quality. The final output is the
+complete useful room, not a checklist of its conclusions.
 
-One session runs the whole DAG and authors every response — there is no
-terminal prompt and no handoff to another session. A `round-N` node is a
-machine-checked stage boundary: it stores the response you wrote for that
-round in `notes/round-N.md` and on the node result, and the run stops with
-the round's instruction when that response is missing. Write it and rerun;
-`finalize` then writes `final.md`, the final section with every stored
-response.
+Brainstorm/review have two mandatory phases. Debate/reframe accept a 1–8 round
+ceiling (default 3); the session decides whether further rounds are worthwhile.
+Full method and recovery instructions are in
+[the shared protocol](skills/_shared/running-on-skillflow.md).
 
-Use a fresh session directory per run (`panel/run.sh` refuses to rebuild
-into an existing one). After a stopped round, write the response and restart
-the run in place — seeding is idempotent and selection is deterministic:
+Install the four skills **with their shared prose and launcher**:
 
 ```sh
-cd ./session1 && skillflow run
+python3 scripts/install_panel_skills.py --skills-dir ~/.codex/skills
+# Another local skill root can be passed instead, or with another --skills-dir.
 ```
 
-Do not pipe the runner through `tail` or similar: that hides a stopped round
-and its nonzero exit code.
+The installed launcher resolves the checkout from a local location file, so it
+works from any repo. Reinstall if the checkout moves. No harness settings, other
+skills, or authentication are modified. Copying a lone SKILL.md is insufficient.
+
+Existing session DBs retain their graphs and can still use `skillflow run` from
+that session directory. `add-skill` remains a separate authoring workflow on its
+legacy graph. The selector and seed tools remain available for explicit standalone
+use and old sessions; the four conversational skills no longer depend on them.
 
 ## MCP server
 

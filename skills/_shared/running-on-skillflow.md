@@ -1,89 +1,93 @@
-# Running on skillflow
+# Prose work inside a process-enforcing DAG
 
-Each skill IS a skillflow graph. The procedure lives in the DAG — seed the
-panel, distill tensions, seat rooms, activate them, collide, check the
-work, extract tensions, finalize — not in prose. One command builds and
-runs the whole session:
+The prose skill tells the session how to think. The local DAG makes the method
+harder to skip: it stops at grounding, activation, and each substantive phase.
+The session recovers relevant history and does all of the intellectual work in
+visible prose. The DAG records order only; it never scores or validates the
+quality of the discussion.
+
+Use the launcher beside this file from any working directory:
 
 ```sh
-panel/run.sh debate "<claim>" [rounds] [session-dir]
-panel/run.sh brainstorm "<goal>" [session-dir]
-panel/run.sh reframe "<current frame>" [rounds] [session-dir]
-panel/run.sh review "<work under review>" [session-dir]
-panel/run.sh add-skill "<new skill idea>" [session-dir]
+python3 "<skills-root>/_shared/run.py" debate "<claim>" 3 "<session-dir>"
+python3 "<skills-root>/_shared/run.py" brainstorm "<goal>" "<session-dir>"
+python3 "<skills-root>/_shared/run.py" review "<work under review>" "<session-dir>"
+python3 "<skills-root>/_shared/run.py" reframe "<current approach>" 3 "<session-dir>"
+python3 "<skills-root>/_shared/run.py" resume "<session-dir>"
 ```
 
-## Graph shape
+`<skills-root>` is the parent of the invoked skill directory. In a checkout,
+`bash panel/run.sh ...` is equivalent. Use a fresh session directory outside
+product source. Debate/reframe accept a round ceiling of 1–8 (default 3), not a
+quota to fill. Brainstorm/review retain their two substantive phases.
 
-    seed-panel -> distill -> select-1 -> activate-1 -> round-1
-      [-> validity-1 (debate)] -> tensions-1 -> select-2 -> ... -> finalize
+## The same-session loop
 
-- `seed-panel` loads the `panelists` table into the session DB.
-- `distill` gates two to five distilled tensions before the first seat: the
-  session writes `tensions.txt` from the subject, and the selector never
-  reads the raw subject.
-- Per round: `select-N` seats the room from the tensions file
-  (`panel/select_room.py`: semantic match, diversity enforced, previous
-  rooms excluded). A seated room is immutable — reruns never re-seat it,
-  so the lenses that chose the round stay the lenses that answer for it.
-- `activate-N` checks the round's activation worksheet exists and names
-  every seated panelist: per panelist, first irritation, fault line,
-  evidence standard, claim they would kill. The room earns its voice
-  before it speaks.
-- `round-N` is a stage boundary that stores the response for that round.
-- `validity-N` (debate only) rejects a record without a live Validity
-  Readback: `collision_that_changed_answer`, `claim_or_option_killed`,
-  `persona_flattening_check`, `giggle_or_wince_line`,
-  `survivor_provenance` — all non-empty.
-- `tensions-N` is a machine node: it extracts the record's
-  `## New tensions` section and writes `tensions.txt` itself. The session
-  never rewrites the material the chooser reads. Empty or unchanged
-  tensions mark the session converged and the rest of the graph drains —
-  a round that moves nothing is the stop.
-- `finalize` collects every stored round response into `final.md`, the
-  final section.
+1. Run the launcher. Read the checkpoint it reports and the exit status.
+2. Do only that phase's work yourself in this conversation, using the skill's
+   prose. Show the substantive phase prose in the conversation and save the
+   requested artifact after the pause. Do not replace discussion with a status
+   update or ask another agent to write it.
+3. Run `resume` on the same directory. The runner records that artifact and
+   yields at the next checkpoint. Continue without asking the user to approve
+   routine pauses. Never yield the final answer merely because a file is missing.
+4. At `finalize`, write `final.md` yourself. Resume once to record it, then give
+   the user the answer inline. A link is supplementary, not a replacement.
 
-## One session
+A normal `PAUSE` exits 1 and returns control to you immediately. It is neither
+a terminal prompt nor a need for a human reply. Do not loop or sleep waiting for
+someone else to write your work. Errors are distinct: fix the local runner issue
+without bypassing it or claiming the checkpoint passed. If the runner is truly
+unavailable, state that pause enforcement is unavailable; you may still perform
+the prose skill with explicit phase breaks and label it as an ungated run.
 
-You are the panel. Run the DAG, author each round's response, rerun — all in
-the same session. Nothing prompts for a person and nothing is handed to
-another session:
+## Artifacts and order
 
-- No terminal prompt. `round-N` never blocks on a TTY and never reads
-  `y/N`.
-- A missing response is the stage boundary. The run stops at that node,
-  names the file to write (`tensions.txt`, `activation-N.md`, `field.md`,
-  `record-N.md`, `frames-N.md`, `intent.md`, `verdict.md`, `draft.md`),
-  and you write it and rerun.
-- `refusal.md` is a legitimate stop with a trace: the refusal is stored,
-  the run ends, and `final.md` records where it stopped. Refusing is an
-  output, not an error.
-- Each response is stored internally: `notes/round-N.md` plus the node
-  result in the session DB.
+- `ground.md` records the live request, sources, evidence, unknowns, and tensions.
+  When history can materially change the room, recover it here with bounded
+  semantic work-history recall or supplied evidence. Show why it matters, but do
+  not turn it into an authority, a scorecard, or a new deliverable.
+- All four then use session-authored `activation-N.md` and substantive prose.
+- Debate: `record-N.md` holds crossfire; `decision-N.json` holds the session's
+  reflection and continue/finish/refuse decision.
+- Brainstorm: `field.md` first, then after a pause `record.md` develops it.
+  Missing or unchanged tensions never skip the development phase.
+- Review: `intent.md` first, then after a pause `verdict.md` holds per-intent
+  deltas. The filename does not require a single overall verdict.
+- Reframe: `frames-N.md` generates alternatives; a separate pause precedes
+  `lineup-N.md`; then `decision-N.json` records continuation, finish, or refusal.
+- Every path ends at a separate `final.md` checkpoint, including refusal.
 
-## Rules
+A decision has exactly this small control shape (the reason is your judgment):
 
-- The selector seats every room. Nobody hand-picks panelists in prose.
-- Tensions are distilled before the first seat and extracted by machine
-  after every round. Do not edit `tensions.txt` mid-session; the chooser
-  reads what the record said, not what you summarize.
-- Activate the room before it speaks: a worksheet that skips a seated
-  panelist fails the boundary.
-- Claims die because a panelist's evidence standard forced the death —
-  not because the scribe decided. Run the delete-the-personas test: if
-  removing every persona line leaves the judgment intact, rerun from
-  first irritation.
-- Mechanical setup is not success. Resolving the DAG, seating rooms, and
-  writing records only prove the room was authorized. The readback is the
-  proof a debate happened.
-- Do not claim a round is done while its stage boundary is unmet, and do
-  not paper over a failed node by writing the record yourself out of
-  order.
-- Do not pipe the runner through `tail` or similar; that hides a stopped
-  round. Read its exit code.
-- A stopped run is a verdict, not an error: read the boundary message,
-  write the response, run again. A refusal is a verdict too, with a
-  trace.
-- Every response, room file, and the DB land in the session directory, so
-  `skillflow status` always shows what is stored and where the run
-  stopped.
+```json
+{"action":"finish","reason":"The remaining objection needs new evidence, not another round."}
+```
+
+Use `continue`, `finish`, or `refuse`. Finish/refuse skip later optional rounds,
+never the final answer. At the round ceiling, report unresolved issues honestly;
+reaching the ceiling does not prove convergence. If evidence is absent, a
+debate/reframe decision may refuse; final prose names the missing evidence
+without inventing later work.
+
+Each newly reached gate always returns before accepting work. Do not batch-write
+future artifacts or final conclusions. A prefilled file must be reconsidered and
+revised after its gate opens. Accepted artifacts are saved under `notes/` and
+checked for later changes; corrections after acceptance use `rewind` so dependent work cannot silently
+survive. The runner archives the affected work instead of deleting it:
+
+```sh
+python3 "<skills-root>/_shared/run.py" rewind "<session-dir>" ground
+```
+
+Then resume to reopen the checkpoint. Use manual rewind when new evidence, a user
+correction, or recalled history changes an earlier phase. You may revise the
+currently open artifact freely before resuming.
+
+The DB and checkpoint receipts show sequence, not whether the reasoning was good.
+The full prose remains the user-facing work. The final output is the complete
+useful room, not a list reporting what the room did.
+
+Old session databases keep their original graph. Resume them with their original
+`skillflow run`, or start a fresh hybrid session using the old work as evidence.
+The separate `add-skill` authoring workflow still uses its legacy graph.

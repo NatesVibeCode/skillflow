@@ -1,173 +1,193 @@
+"""Behavioral checks for the hybrid: real DAG subprocesses, no model calls."""
 import json
-import os
+from pathlib import Path
 import sqlite3
 import subprocess
 import sys
 import tempfile
 import unittest
 
-ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-RUNNER = os.path.join(ROOT, "panel", "run.sh")
-
-READBACK = """## Validity Readback
-
-- collision_that_changed_answer: the exchange that mutated the answer
-- claim_or_option_killed: what died and why
-- persona_flattening_check: why voices could not be job labels
-- giggle_or_wince_line: the line that landed
-- survivor_provenance: where the objection changed the survivor
-"""
+ROOT = Path(__file__).resolve().parents[1]
+RUNNER = ROOT / 'panel/run.sh'
 
 
-class PanelRunnerTest(unittest.TestCase):
-    """The panel DAG must never block on a terminal prompt."""
-
+class HybridPanelTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
-        self.session = os.path.join(self.tmp.name, "session1")
-        self.env = dict(
-            os.environ,
-            PYTHONPATH=ROOT,
-            SKILLFLOW_CMD=f"{sys.executable} -m skillflow.cli",
-        )
+        # Exercise shell-safe paths, not just convenient /tmp ASCII names.
+        self.session = Path(self.tmp.name) / "session's $notes `literal`"
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_runner(self, *args):
-        return subprocess.run(
-            ["bash", RUNNER, *args],
-            cwd=ROOT,
-            env=self.env,
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
+    def call(self, *args):
+        return subprocess.run(['bash', str(RUNNER), *map(str, args)],
+                              cwd=self.tmp.name, capture_output=True,
+                              text=True, timeout=180)
 
-    def cli(self, *args):
-        return subprocess.run(
-            [sys.executable, "-m", "skillflow.cli", *args],
-            cwd=self.session,
-            env=dict(self.env, SKILLFLOW_DB=os.path.join(
-                self.session, "skillflow.db")),
-            capture_output=True,
-            text=True,
-            timeout=180,
-        )
+    def start(self, skill='debate', rounds=2):
+        args = [skill, 'the actual subject']
+        if skill in ('debate', 'reframe'): args.append(str(rounds))
+        result = self.call(*args, self.session)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('PAUSE ground', result.stdout)
+        return self.plan()
 
-    def dag(self):
-        conn = sqlite3.connect(os.path.join(self.session, "skillflow.db"))
-        try:
-            conn.row_factory = sqlite3.Row
-            nodes = [dict(r) for r in conn.execute(
-                "SELECT name, cmd FROM nodes ORDER BY name")]
-        finally:
-            conn.close()
-        return {n["name"]: n["cmd"] for n in nodes}
+    def plan(self):
+        return json.loads((self.session / 'checkpoints.json').read_text())['stages']
 
-    def write(self, name, text):
-        with open(os.path.join(self.session, name), "w") as fh:
-            fh.write(text)
+    def state(self):
+        return json.loads((self.session / '.checkpoints.json').read_text())
 
-    def test_no_node_prompts_and_missing_tensions_stop_first(self):
-        result = self.run_runner("debate", "ship it friday", "1", self.session)
-        # The run stops at the distill boundary instead of prompting.
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("stage boundary", result.stdout + result.stderr)
-        nodes = self.dag()
-        self.assertNotIn("read -p", json.dumps(nodes))
-        for name in ("distill", "activate-1", "validity-1", "tensions-1",
-                     "finalize"):
-            self.assertIn(name, nodes)
-        self.assertIn("stage.py", nodes["round-1"])
-        self.assertIn("stage.py", nodes["activate-1"])
+    def current(self):
+        name = self.state()['waiting']['name']
+        return next(s for s in self.plan() if s['name'] == name)
 
-    def _distill(self):
-        self.write("tensions.txt",
-                   "independence of the checker, legitimate stopping\n")
+    def submit(self, body=None):
+        step = self.current()
+        if body is None:
+            if step.get('decision'):
+                body = json.dumps(dict(action='continue', reason='A distinct open tension remains.'))
+            else:
+                body = f'Session-authored work for {step["name"]}; no required magic headings.\n'
+        (self.session / step['artifact']).write_text(body)
+        return self.call('resume', self.session)
 
-    def _activate(self, room_file="room-1.json", artifact="activation-1.md"):
-        room = json.load(open(os.path.join(self.session, room_file)))
-        lines = [f"{p['name']} ({p['id']}): first irritation, evidence "
-                 f"standard, claim to kill.\n" for p in room["room"]]
-        self.write(artifact, "".join(lines))
+    def advance_to(self, name):
+        for _ in range(70):
+            if self.current()['name'] == name: return
+            result = self.submit()
+            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.fail(f'never reached {name}')
 
-    def test_written_round_completes_and_writes_final_section(self):
-        self.run_runner("debate", "ship it friday", "1", self.session)
-        self._distill()
-        result = self.cli("run")  # stops at activate-1
-        self.assertNotEqual(result.returncode, 0)
-        self._activate()
-        self.write("record-1.md",
-                   "where the claim moved\n\n" + READBACK)
-        result = self.cli("run")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        with open(os.path.join(self.session, "final.md")) as fh:
-            final = fh.read()
-        self.assertIn("## Round 1", final)
-        self.assertIn("where the claim moved", final)
-        self.assertTrue(os.path.isfile(
-            os.path.join(self.session, "notes", "round-1.md")))
+    def test_all_four_complete_in_session_with_phase_boundaries_and_final(self):
+        for skill in ('debate', 'brainstorm', 'review', 'reframe'):
+            with self.subTest(skill=skill):
+                self.session = Path(self.tmp.name) / skill
+                plan = self.start(skill, 1)
+                visited = []
+                for step in plan:
+                    self.assertEqual(self.current()['name'], step['name'])
+                    visited.append(step['name'])
+                    result = self.submit()
+                    self.assertEqual(result.returncode, 0 if step['name'] == 'finalize' else 1,
+                                     result.stdout + result.stderr)
+                self.assertIn('ground', visited)
+                self.assertIn('activate-1', visited)
+                self.assertEqual(visited[-1], 'finalize')
+                self.assertEqual((self.session / 'final.md').read_bytes(),
+                                 (self.session / 'notes/final.md').read_bytes())
+                self.assertIsNone(self.state()['waiting'])
+                with sqlite3.connect(self.session / 'skillflow.db') as db:
+                    cmds = '\n'.join(r[0] for r in db.execute('select cmd from nodes'))
+                for forbidden in ('select_room', 'seed.py', 'stage.py', 'read -p'):
+                    self.assertNotIn(forbidden, cmds)
 
-    def test_rerun_does_not_reseat_a_seated_room(self):
-        # A seated room is the lens work that produced the round's record.
-        # Rerunning the DAG must keep it: the room on disk is what the
-        # record answers to and what later rounds exclude. Re-seating from
-        # updated tensions would let the newest tensions rewrite the panel
-        # retroactively.
-        self.run_runner("debate", "ship it friday", "2", self.session)
-        self._distill()
-        result = self.cli("run")  # select-1 seats; activate-1 stops
-        self.assertNotEqual(result.returncode, 0)
-        self._activate()
-        self.write(
-            "record-1.md",
-            "where the claim moved\n\n## New tensions\n"
-            "- refusal affordance\n- weak material\n\n" + READBACK)
-        room_before = json.load(
-            open(os.path.join(self.session, "room-1.json")))
-        result = self.cli("run")  # select-2 seats; activate-2 stops
-        self.assertNotEqual(result.returncode, 0)
-        room_after = json.load(open(os.path.join(self.session, "room-1.json")))
-        self.assertEqual(room_before["room"], room_after["room"])
-        room2 = json.load(open(os.path.join(self.session, "room-2.json")))
-        seated = {p["id"] for p in room_before["room"]}
-        overlap = seated & {p["id"] for p in room2["room"]}
-        self.assertEqual(overlap, set(),
-                         f"round 2 re-seated round 1 panelists: {overlap}")
+    def test_reframe_field_cannot_jump_to_lineup_and_final_cannot_be_prefilled(self):
+        self.start('reframe', 1)
+        self.advance_to('field-1')
+        (self.session / 'lineup-1.md').write_text('Premature winner')
+        result = self.submit('Alternatives without a winner')
+        self.assertIn('PAUSE lineup-1', result.stdout)
+        result = self.call('resume', self.session)
+        self.assertIn('prefilled artifact has not been revised', result.stdout)
+        self.assertNotIn('lineup-1', self.state()['accepted'])
+        self.submit('Lineup reconsidered against the actual field')
+        self.advance_to('finalize')
+        self.assertNotIn('finalize', self.state()['accepted'])
 
-    def test_unchanged_tensions_end_the_session(self):
-        # A round that moves nothing is the stop: the machine converges the
-        # session and the remaining graph drains instead of polishing.
-        self.run_runner("debate", "ship it friday", "3", self.session)
-        self._distill()
-        self.cli("run")
-        self._activate()
-        self.write(
-            "record-1.md",
-            "the claim moved nowhere\n\n## New tensions\n"
-            "- independence of the checker\n- legitimate stopping\n\n"
-            + READBACK)
-        result = self.cli("run")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertTrue(stage := os.path.isfile(
-            os.path.join(self.session, "converged.txt")))
-        with open(os.path.join(self.session, "final.md")) as fh:
-            self.assertIn("Stopped:", fh.read())
+    def test_brainstorm_and_review_do_not_converge_on_missing_tensions(self):
+        for skill in ('brainstorm', 'review'):
+            self.session = Path(self.tmp.name) / skill
+            self.start(skill)
+            self.advance_to('round-1')
+            self.submit('Useful first phase with no tension heading.')
+            self.assertEqual(self.current()['name'], 'activate-2')
+            self.assertFalse((self.session / 'final.md').exists())
 
-    def test_refusal_stops_with_a_trace(self):
-        self.run_runner("debate", "ship it friday", "2", self.session)
-        self._distill()
-        self.cli("run")
-        self._activate()
-        self.write("refusal.md", "the room refuses: the work is not ready\n")
-        result = self.cli("run")
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        with open(os.path.join(self.session, "final.md")) as fh:
-            final = fh.read()
-        self.assertIn("REFUSED", final)
-        self.assertIn("the work is not ready", final)
+    def test_session_finish_skips_optional_rounds_but_not_final(self):
+        self.start(rounds=3)
+        self.advance_to('reflect-1')
+        result = self.submit('{"action":"finish","reason":"A new experiment is needed."}')
+        self.assertIn('PAUSE finalize', result.stdout)
+        self.assertFalse((self.session / 'activation-2.md').exists())
+        self.assertEqual(self.submit('Final authored judgment.').returncode, 0)
+
+    def test_refusal_from_decision_preserves_trace_and_requires_final(self):
+        self.start('debate')
+        self.advance_to('reflect-1')
+        result = self.submit('{"action":"refuse","reason":"The target evidence is unavailable; a result would be invented."}')
+        self.assertIn('PAUSE finalize', result.stdout)
+        self.assertFalse((self.session / 'activation-2.md').exists())
+        self.assertEqual(self.state()['stop']['action'], 'refuse')
+        self.assertEqual(self.submit('Cannot establish alignment; missing evidence named.').returncode, 0)
+        self.assertIn('unavailable', (self.session / 'notes/decision-1.json').read_text())
+
+    def test_manual_rewind_archives_work_and_reopens_required_phase(self):
+        self.start(rounds=1)
+        self.advance_to('round-1')
+        self.submit('The answer precedes the crossfire.')
+        result = self.call('rewind', self.session, 'round-1')
+        self.assertIn('REOPENED:', result.stdout)
+        self.assertNotIn('round-1', self.state()['accepted'])
+        self.assertIn('ground', self.state()['accepted'])
+        self.assertFalse((self.session / 'record-1.md').exists())
+        self.assertTrue(list((self.session / 'revisions').glob('*/artifacts/record-1.md')))
+        self.call('resume', self.session)
+        self.assertEqual(self.current()['name'], 'round-1')
+
+    def test_runner_does_not_parse_or_score_session_prose(self):
+        self.start(rounds=1)
+        self.advance_to('round-1')
+        result = self.submit('Status: magic\nNo scorecard grammar belongs here.')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(self.current()['name'], 'reflect-1')
+
+    def test_changed_accepted_evidence_blocks_until_rewind(self):
+        self.start()
+        self.submit('Original ground evidence')
+        (self.session / 'ground.md').write_text('Corrected ground evidence')
+        result = self.call('resume', self.session)
+        self.assertIn('accepted artifact changed', result.stdout)
+        self.assertNotIn('activate-1', self.state()['accepted'])
+        result = self.call('rewind', self.session, 'ground')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.call('resume', self.session)
+        self.assertEqual(self.current()['name'], 'ground')
+        self.assertEqual(self.state()['accepted'], {})
+
+    def test_invalid_decisions_do_not_release_the_next_phase(self):
+        self.start(rounds=1)
+        self.advance_to('reflect-1')
+        for body in ('broken', '[]', '{"action":"finish","reason":""}', '{"action":"maybe","reason":"x"}'):
+            self.assertEqual(self.submit(body).returncode, 1)
+            self.assertEqual(self.current()['name'], 'reflect-1')
+
+    def test_existing_session_and_invalid_rounds_are_rejected(self):
+        self.start()
+        result = self.call('debate', 'new target', '2', self.session)
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual((self.session / 'subject.txt').read_text(), 'the actual subject\n')
+        for rounds in ('0', '9', 'nonsense'):
+            result = self.call('debate', 'subject', rounds, Path(self.tmp.name) / 'invalid')
+            self.assertEqual(result.returncode, 2)
+
+    def test_installed_skills_have_working_links_and_launcher_from_any_cwd(self):
+        destination = Path(self.tmp.name) / 'installed skills'
+        result = subprocess.run([sys.executable, str(ROOT / 'scripts/install_panel_skills.py'),
+                                 '--skills-dir', str(destination)], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        for skill in ('debate', 'brainstorm', 'review', 'reframe'):
+            self.assertEqual((destination / skill / 'SKILL.md').read_bytes(),
+                             (ROOT / 'skills' / skill / 'SKILL.md').read_bytes())
+        for name in ('panel.md', 'panelists.json', 'running-on-skillflow.md', 'run.py', 'runner.json'):
+            self.assertTrue((destination / '_shared' / name).exists())
+        result = subprocess.run([sys.executable, str(destination / '_shared/run.py'),
+                                 'review', 'Inspect a change', str(self.session)],
+                                cwd=self.tmp.name, capture_output=True, text=True, timeout=180)
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn('PAUSE ground', result.stdout)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     unittest.main()
