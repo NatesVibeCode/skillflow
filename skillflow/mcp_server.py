@@ -16,7 +16,7 @@ try:
     from mcp.types import ToolAnnotations  # noqa: E402
 except ImportError:
     print("error: the 'mcp' package is not installed.",
-          "Install the server extra: pip install 'skill-flow[mcp]',",
+          "Install the server extra: pip install 'skill-dag[mcp]',",
           file=sys.stderr)
     raise SystemExit(2)
 

@@ -1,5 +1,5 @@
 [project]
-name = "skill-flow"
+name = "skill-dag"
 version = "0.1.0"
 description = "A minimal SQLite-backed DAG runner: nodes, edges, run, status."
 readme = "README.md"

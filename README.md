@@ -10,9 +10,9 @@ library.
 Requires Python 3.10+.
 
 ```sh
-pip install skill-flow
+pip install skill-dag
 # with the MCP server:
-pip install "skill-flow[mcp]"
+pip install "skill-dag[mcp]"
 ```
 
 Or from a checkout (needed for the panel skills and `panel/run.sh`):
@@ -113,7 +113,7 @@ Everything above is also an MCP server (stdio). Eight tools: `skillflow_init`,
 `skillflow_status`, `panel_seed`, `panel_select_room`.
 
 ```sh
-pip install "skill-flow[mcp]"
+pip install "skill-dag[mcp]"
 python -m skillflow.mcp_server
 ```
 
