@@ -6,7 +6,7 @@ panelist's tags, then enforces diversity: at most one panelist per family,
 three to five seats. Score proposes; diversity disposes.
 
 Usage:
-    SKILLFLOW_DB=./session1/skillflow.db python3 select_room.py --tensions risk,measurement
+    SKILLFLOW_DB=./session1/skillflow.db python3 -m skillflow.panel.select_room --tensions risk,measurement
 """
 
 import argparse
@@ -52,12 +52,18 @@ def tag_tokens(panelist: dict) -> set:
 
 def select(panelists: list, tensions: list, size: int,
            excluded: set | None = None) -> list:
+    """Rank by score, then by fewest past seatings, then stable salt.
+
+    Score still proposes, but ties rotate toward rarely-seated panelists
+    instead of always seating the same room for the same tensions.
+    """
     excluded = excluded or set()
     scored = [(score(tensions, p), p) for p in panelists
               if p["id"] not in excluded]
     ranked = sorted(
         scored,
-        key=lambda item: (-item[0], stable_salt(item[1]["id"], tensions)),
+        key=lambda item: (-item[0], item[1].get("seated", 0),
+                          stable_salt(item[1]["id"], tensions)),
     )
     # Two passes: strict (no near-duplicate tag sets), then relaxed to fill.
     room, used_families, seated_tags = [], set(), set()
@@ -90,8 +96,12 @@ def load_panelists(db: str) -> list:
     conn = sqlite3.connect(db)
     try:
         conn.row_factory = sqlite3.Row
+        names = [row["name"] for row in
+                 conn.execute("PRAGMA table_info(panelists)")]
+        seated = ", seated" if "seated" in names else ", 0 AS seated"
         rows = conn.execute(
-            "SELECT id, name, lens, attributes, family, tags FROM panelists"
+            "SELECT id, name, lens, attributes, family, tags"
+            + seated + " FROM panelists"
         ).fetchall()
     finally:
         conn.close()
@@ -100,9 +110,23 @@ def load_panelists(db: str) -> list:
     return [
         {"id": r["id"], "name": r["name"], "lens": r["lens"],
          "attributes": json.loads(r["attributes"]), "family": r["family"],
-         "tags": json.loads(r["tags"])}
+         "tags": json.loads(r["tags"]), "seated": r["seated"]}
         for r in rows
     ]
+
+
+def record_seating(db: str, ids: list) -> int:
+    """Remember that these panelist ids were seated. Returns the count."""
+    conn = sqlite3.connect(db)
+    try:
+        conn.executemany(
+            "UPDATE panelists SET seated = seated + 1 WHERE id = ?",
+            [(pid,) for pid in ids],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+    return len(ids)
 
 
 def load_excluded(paths: list) -> set:
@@ -129,6 +153,8 @@ def main(argv=None) -> int:
     parser.add_argument("--out", default=None, help="write room JSON here")
     parser.add_argument("--exclude", action="append", default=[],
                         help="room.json whose members to exclude (repeatable)")
+    parser.add_argument("--record", action="store_true",
+                        help="remember this seating for future rotation")
     args = parser.parse_args(argv)
 
     if not (MIN_SEATS <= args.size <= MAX_SEATS):
@@ -152,11 +178,14 @@ def main(argv=None) -> int:
         print(f"error: cannot load --exclude file: {exc}", file=sys.stderr)
         return 2
     room = select(panelists, tensions, args.size, excluded)
+    if args.record:
+        record_seating(args.db, [p["id"] for p in room])
     result = {
         "tensions": tensions,
         "room": [
             {"name": p["name"], "id": p["id"], "family": p["family"],
-             "lens": p["lens"], "score": score(tensions, p)}
+             "lens": p["lens"], "score": score(tensions, p),
+             "seated": p.get("seated", 0)}
             for p in room
         ],
     }

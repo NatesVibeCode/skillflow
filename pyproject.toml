@@ -1,6 +1,6 @@
 [project]
 name = "skill-dag"
-version = "0.1.0"
+version = "0.2.0"
 description = "A minimal SQLite-backed DAG runner: nodes, edges, run, status."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,3 +34,6 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["skillflow*"]
+
+[tool.setuptools.package-data]
+"skillflow.panel" = ["panelists.json"]

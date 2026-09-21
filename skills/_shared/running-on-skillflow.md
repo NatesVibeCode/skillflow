@@ -13,8 +13,15 @@ python3 "<skills-root>/_shared/run.py" debate "<claim>" 3 "<session-dir>"
 python3 "<skills-root>/_shared/run.py" brainstorm "<goal>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" review "<work under review>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" reframe "<current approach>" 3 "<session-dir>"
+python3 "<skills-root>/_shared/run.py" add-skill "<skill name: one line>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" resume "<session-dir>"
+python3 "<skills-root>/_shared/run.py" status "<session-dir>"
+python3 "<skills-root>/_shared/run.py" chain "<session-dir>" review "<new-dir>"
 ```
+
+`status` reports the current gate without advancing. `chain` starts a new
+skill carrying the prior final as evidence; the prior session must have a
+recorded `final.md`.
 
 `<skills-root>` is the parent of the invoked skill directory. In a checkout,
 `bash panel/run.sh ...` is equivalent. Use a fresh session directory outside
@@ -90,4 +97,4 @@ useful room, not a list reporting what the room did.
 
 Old session databases keep their original graph. Resume them with their original
 `skillflow run`, or start a fresh hybrid session using the old work as evidence.
-The separate `add-skill` authoring workflow still uses its legacy graph.
+All five skills run this same hybrid loop.

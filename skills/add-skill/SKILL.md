@@ -1,49 +1,57 @@
 ---
 name: add-skill
-description: Author a new skillflow panel skill end to end: draft it, wire its DAG, validate it, test it. Use when adding a skill to this repo.
+description: Author a new skillflow panel skill end to end: draft it, wire its stages, validate it, test it. Use when adding a skill to this repo.
 ---
 
 # Add Skill
 
-**Requires:** [skillflow](https://github.com/NatesVibeCode/skillflow) — run via `panel/run.sh`.
+Author a new skill in this session. A local DAG enforces phase breaks;
+the prose work stays here.
 
-A new skill is three things: a thin `SKILL.md`, a DAG shape in
-`panel/run.sh`, and proof it runs. This skill walks all three.
-
-## Run
+Read [the room method](../_shared/panel.md) and
+[the pause loop](../_shared/running-on-skillflow.md), then start:
 
 ```sh
-panel/run.sh add-skill "<skill name: one line on what it does>" [session-dir]
+python3 "<skills-root>/_shared/run.py" add-skill "<skill name: one line on what it does>" "<session-dir>"
 ```
 
-Run it as one session: you run the DAG, and you author every response.
-Nothing waits on a person or another session — there is no terminal prompt
-and no handoff.
+Resolve `<skills-root>` from this skill's directory, not the current repo.
+After every `PAUSE`, do the work, write that artifact, and resume in this same
+conversation. It is not a permission question, another agent's job, or a reason
+to end the turn.
 
-Round 1 drafts; round 2 validates and tests. Each round node is a stage
-boundary: it stores that round's response in `notes/round-N.md` and on the
-node result. `finalize` writes `final.md`, the final section with every
-stored response. A round with no response stops the run and names the file to
-write — write it and rerun in the same session.
+## Ground in the repo
 
-## Rules for the new skill
+Read the request and the current `skills/` layout plus `panel/checkpoints.py`.
+A new skill is three things: a thin `SKILL.md`, a stage plan registered in
+`checkpoints.py`, and proof it runs. Keep the user's scope; do not redesign
+sibling skills along the way.
+
+## Draft, then prove
+
+Write `draft.md` with the new SKILL.md text plus the `checkpoints.py` diff.
+Rules for the new skill:
 
 - Directory `skills/<id>/` with one `SKILL.md`. The id is lowercase ASCII,
   digits, hyphens only — and it must match the frontmatter `name`.
 - Frontmatter is exactly `name` + one-sentence `description`.
-- Body stays thin: what it is, the `panel/run.sh <id>` command, and the
-  record format. The procedure goes in the graph (round prompts in
-  `panel/run.sh`), never in prose.
+- Body stays thin: what it is, the launcher command, and the record format.
+  The procedure goes in the graph (stage prompts in `checkpoints.py`),
+  never in prose.
 - No terminal prompts and no handoffs: one session runs the DAG and authors
-  each response. A round node is a stage boundary that stores the response
-  and stops the run when it is missing.
+  each response. A gate is a stage boundary that records the artifact
+  and stops the run when it is missing or unrevised.
 - No mention of private systems, people, or history. Grep the draft for
   leaks before calling it done.
 - Fixed-shape skills (like brainstorm/review) take no rounds argument;
   round-loop skills (like debate/reframe) default to 3.
 
-## Record
+Write `record.md` with the validator output (`panel/check_skills.py`), the
+end-to-end test result (walk the new skill's gates in a scratch session),
+and the leak-grep result. All three must pass.
 
-`draft.md` holds the new SKILL.md text plus the run.sh diff; `record.md`
-holds the validator output, the end-to-end test result, and the leak-grep
-result. Both read in under a minute.
+## Deliver
+
+Write `final.md` yourself and record it through the final pause: the new
+skill, its wiring, and its proof. Give the useful result inline, not a link
+to the session directory.

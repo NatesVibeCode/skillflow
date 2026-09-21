@@ -4,9 +4,12 @@ import sqlite3
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS nodes (
-    id   INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL UNIQUE,
-    cmd  TEXT NOT NULL DEFAULT ''
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name     TEXT NOT NULL UNIQUE,
+    cmd      TEXT NOT NULL DEFAULT '',
+    timeout_s REAL,
+    env      TEXT,
+    cwd      TEXT
 );
 CREATE TABLE IF NOT EXISTS edges (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,9 +37,27 @@ CREATE TABLE IF NOT EXISTS node_results (
 """
 
 
+#: Columns added after 0.1.0; existing databases gain them on connect.
+MIGRATIONS = (
+    ("nodes", "timeout_s", "REAL"),
+    ("nodes", "env", "TEXT"),
+    ("nodes", "cwd", "TEXT"),
+)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    for table, column, decltype in MIGRATIONS:
+        names = [row["name"] for row in
+                 conn.execute(f"PRAGMA table_info({table})")]
+        if column not in names:
+            conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {decltype}")
+
+
 def connect(path: str, timeout: float = 30.0) -> sqlite3.Connection:
     conn = sqlite3.connect(path, timeout=timeout)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
     conn.executescript(SCHEMA)
+    _migrate(conn)
+    conn.commit()
     return conn

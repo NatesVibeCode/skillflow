@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Install the four in-session skills plus their shared prose and local launcher."""
+"""Install the five panel skills plus their shared prose and local launcher."""
 import argparse
 import json
 from pathlib import Path
 import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILLS = ('debate', 'brainstorm', 'review', 'reframe')
+SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
 
 
 def install(destination):
@@ -22,7 +22,7 @@ def install(destination):
     shared.mkdir(parents=True, exist_ok=True)
     for name in ('panel.md', 'running-on-skillflow.md', 'run.py'):
         shutil.copy2(source / '_shared' / name, shared / name)
-    shutil.copy2(ROOT / 'panel/panelists.json', shared / 'panelists.json')
+    shutil.copy2(ROOT / 'skillflow/panel/panelists.json', shared / 'panelists.json')
     (shared / 'runner.json').write_text(json.dumps({'runner': str(ROOT / 'panel/run.sh')}, indent=2) + '\n')
     print(f'Installed {", ".join(SKILLS)} and shared prose into {destination}')
 

@@ -6,15 +6,25 @@ import tempfile
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.dirname(HERE)
+PKG = os.path.join(ROOT, "skillflow", "panel")
 
 
 def run_selector(db, *args):
     env = dict(os.environ, SKILLFLOW_DB=db)
     proc = subprocess.run(
-        [sys.executable, os.path.join(HERE, "select_room.py"), *args],
+        [sys.executable, os.path.join(PKG, "select_room.py"), *args],
         capture_output=True, text=True, env=env,
     )
     return proc
+
+
+def run_seed(db):
+    env = dict(os.environ, SKILLFLOW_DB=db)
+    return subprocess.run(
+        [sys.executable, os.path.join(PKG, "seed.py")],
+        capture_output=True, text=True, env=env,
+    )
 
 
 class SelectTest(unittest.TestCase):
@@ -22,11 +32,7 @@ class SelectTest(unittest.TestCase):
     def setUpClass(cls):
         cls.tmp = tempfile.TemporaryDirectory()
         cls.db = os.path.join(cls.tmp.name, "test.db")
-        env = dict(os.environ, SKILLFLOW_DB=cls.db)
-        proc = subprocess.run(
-            [sys.executable, os.path.join(HERE, "seed.py")],
-            capture_output=True, text=True, env=env,
-        )
+        proc = run_seed(cls.db)
         assert proc.returncode == 0, proc.stderr
 
     @classmethod
@@ -89,8 +95,8 @@ class SelectTest(unittest.TestCase):
         self.assertEqual(proc.returncode, 2)
 
     def test_near_duplicates_not_seated_together(self):
-        sys.path.insert(0, HERE)
-        from select_room import select
+        sys.path.insert(0, ROOT)
+        from skillflow.panel.select_room import select
         try:
             roster = [
                 {"id": "a", "family": "risk", "lens": "", "attributes": [],
@@ -107,7 +113,7 @@ class SelectTest(unittest.TestCase):
             self.assertIn("a", ids)
             self.assertNotIn("b", ids)
         finally:
-            sys.path.remove(HERE)
+            sys.path.remove(ROOT)
 
     def test_diversity_one_per_family(self):
         proc = run_selector(self.db, "--tensions", "risk", "--size", "5")
@@ -144,6 +150,49 @@ class SelectTest(unittest.TestCase):
         open(empty, "w").close()
         proc = run_selector(empty, "--tensions", "risk")
         self.assertEqual(proc.returncode, 2)
+
+    def test_ties_rotate_to_rarely_seated(self):
+        sys.path.insert(0, ROOT)
+        from skillflow.panel.select_room import select
+        try:
+            roster = [
+                {"id": "worn", "family": "risk", "lens": "", "attributes": [],
+                 "tags": ["risk"], "seated": 9},
+                {"id": "fresh", "family": "human", "lens": "", "attributes": [],
+                 "tags": ["risk"], "seated": 0},
+                {"id": "other", "family": "clarity", "lens": "",
+                 "attributes": [], "tags": ["risk"], "seated": 0},
+                {"id": "fourth", "family": "measure", "lens": "",
+                 "attributes": [], "tags": ["risk"], "seated": 0},
+            ]
+            room = select(roster, ["risk"], 3)
+            ids = [p["id"] for p in room]
+            self.assertIn("fresh", ids)
+            self.assertNotIn("worn", ids)
+        finally:
+            sys.path.remove(ROOT)
+
+    def test_record_and_reseed_preserve_counts(self):
+        import sqlite3
+        db = os.path.join(self.tmp.name, "memory.db")
+        proc = run_seed(db)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        first = run_selector(db, "--tensions", "risk", "--record")
+        self.assertEqual(first.returncode, 0)
+        room = json.loads(first.stdout)["room"]
+        conn = sqlite3.connect(db)
+        seated = {r[0]: r[1] for r in conn.execute(
+            "SELECT id, seated FROM panelists WHERE seated > 0")}
+        conn.close()
+        self.assertEqual(
+            seated, {p["id"]: 1 for p in room})
+        proc = run_seed(db)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        conn = sqlite3.connect(db)
+        again = {r[0]: r[1] for r in conn.execute(
+            "SELECT id, seated FROM panelists WHERE seated > 0")}
+        conn.close()
+        self.assertEqual(again, seated)
 
 
 if __name__ == "__main__":

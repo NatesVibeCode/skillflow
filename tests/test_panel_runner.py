@@ -83,6 +83,54 @@ class HybridPanelTest(unittest.TestCase):
                 for forbidden in ('select_room', 'seed.py', 'stage.py', 'read -p'):
                     self.assertNotIn(forbidden, cmds)
 
+    def test_add_skill_walks_draft_record_finalize(self):
+        self.session = Path(self.tmp.name) / "add-skill"
+        plan = self.start("add-skill", 1)
+        self.assertEqual(
+            [s["name"] for s in plan],
+            ["ground", "draft", "record", "finalize"],
+        )
+        visited = []
+        for step in plan:
+            self.assertEqual(self.current()["name"], step["name"])
+            visited.append(step["name"])
+            result = self.submit()
+            self.assertEqual(result.returncode, 0 if step["name"] == "finalize" else 1,
+                             result.stdout + result.stderr)
+        self.assertEqual(visited[-1], "finalize")
+        self.assertIsNone(self.state()["waiting"])
+
+    def test_chain_carries_final_into_next_skill(self):
+        self.session = Path(self.tmp.name) / "prior"
+        plan = self.start("debate", 1)
+        for step in plan:
+            result = self.submit()
+            self.assertEqual(result.returncode, 0 if step["name"] == "finalize" else 1,
+                             result.stdout + result.stderr)
+        chained = Path(self.tmp.name) / "next"
+        result = self.call("chain", self.session, "review", chained)
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn("PAUSE ground", result.stdout)
+        self.assertEqual(
+            (chained / "prior-final.md").read_bytes(),
+            (self.session / "notes/final.md").read_bytes(),
+        )
+        doc = json.loads((chained / "checkpoints.json").read_text())
+        self.assertEqual(doc["prior"], str(self.session.resolve()))
+        self.assertIn("prior-final.md", doc["stages"][0]["prompt"])
+
+    def test_chain_refuses_incomplete_or_unknown(self):
+        self.session = Path(self.tmp.name) / "open"
+        self.start("debate", 1)
+        result = self.call("chain", self.session, "review",
+                           Path(self.tmp.name) / "next")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("no recorded final.md", result.stderr)
+        result = self.call("chain", self.session, "nope",
+                           Path(self.tmp.name) / "next2")
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("unknown skill", result.stderr)
+
     def test_reframe_field_cannot_jump_to_lineup_and_final_cannot_be_prefilled(self):
         self.start('reframe', 1)
         self.advance_to('field-1')
@@ -177,7 +225,8 @@ class HybridPanelTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(ROOT / 'scripts/install_panel_skills.py'),
                                  '--skills-dir', str(destination)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        for skill in ('debate', 'brainstorm', 'review', 'reframe'):
+        for skill in ('debate', 'brainstorm', 'review', 'reframe',
+                      'add-skill'):
             self.assertEqual((destination / skill / 'SKILL.md').read_bytes(),
                              (ROOT / 'skills' / skill / 'SKILL.md').read_bytes())
         for name in ('panel.md', 'panelists.json', 'running-on-skillflow.md', 'run.py', 'runner.json'):

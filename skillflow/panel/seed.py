@@ -4,7 +4,7 @@ The roster lives in the DB, not in a doc: same SQLite file as the DAG,
 separate table. panelists.json is only the seed source.
 
 Usage:
-    SKILLFLOW_DB=./session1/skillflow.db python3 panel/seed.py
+    SKILLFLOW_DB=./session1/skillflow.db python3 -m skillflow.panel.seed
 """
 
 import json
@@ -21,7 +21,8 @@ CREATE TABLE IF NOT EXISTS panelists (
     lens TEXT NOT NULL,
     attributes TEXT NOT NULL,
     family TEXT NOT NULL,
-    tags TEXT NOT NULL
+    tags TEXT NOT NULL,
+    seated INTEGER NOT NULL DEFAULT 0
 );
 """
 
@@ -32,10 +33,19 @@ def seed(db_path: str, source: str) -> int:
     conn = sqlite3.connect(db_path)
     try:
         conn.executescript(SCHEMA)
+        names = [row[1] for row in
+                 conn.execute("PRAGMA table_info(panelists)")]
+        if "seated" not in names:
+            conn.execute("ALTER TABLE panelists "
+                         "ADD COLUMN seated INTEGER NOT NULL DEFAULT 0")
         conn.executemany(
-            "INSERT OR REPLACE INTO panelists "
-            "(id, name, lens, attributes, family, tags) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
+            "INSERT INTO panelists "
+            "(id, name, lens, attributes, family, tags, seated) "
+            "VALUES (?, ?, ?, ?, ?, ?, 0) "
+            "ON CONFLICT(id) DO UPDATE SET "
+            "name = excluded.name, lens = excluded.lens, "
+            "attributes = excluded.attributes, family = excluded.family, "
+            "tags = excluded.tags",
             [(p["id"], p["name"], p["lens"],
               json.dumps(p["attributes"]), p["family"],
               json.dumps(p["tags"])) for p in panelists],

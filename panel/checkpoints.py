@@ -16,8 +16,9 @@ from datetime import datetime
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from skillflow.dag import Flow, FlowError  # noqa: E402
+from skillflow.session import format_status, status_summary  # noqa: E402
 
-SKILLS = ('debate', 'brainstorm', 'review', 'reframe')
+SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
 
 
 def stages(skill, rounds):
@@ -27,6 +28,18 @@ def stages(skill, rounds):
         result.append(dict(name=name, artifact=artifact, prompt=prompt,
                            round=number, decision=decision))
 
+    if skill == 'add-skill':
+        add('draft', 'draft.md',
+            'Draft the new SKILL.md text plus the checkpoints.py diff that '
+            'registers its stages. Keep the skill thin; the procedure goes '
+            'in the graph, never in prose.')
+        add('record', 'record.md',
+            'Record the validator output, the end-to-end test result, and '
+            'the leak-grep result. All three must pass before finalizing.')
+        add('finalize', 'final.md',
+            'Write the final answer yourself: the new skill, its wiring, '
+            'and its proof. The DAG will not summarize for you.')
+        return result
     count = rounds if skill in ('debate', 'reframe') else 2
     for n in range(1, count + 1):
         add(f'activate-{n}', f'activation-{n}.md',
@@ -166,6 +179,43 @@ def run(session):
     return 1
 
 
+def start_session(skill, subject, rounds, folder, prior=None):
+    """Create a session directory, plan, and gate DAG. Returns the path."""
+    if not subject.strip(): raise ValueError('subject is empty')
+    if not 1 <= rounds <= 8: raise ValueError('rounds must be 1-8')
+    session = Path(folder).resolve()
+    if session.exists() and any(session.iterdir()):
+        raise ValueError('session directory is not empty; use resume or a fresh directory')
+    session.mkdir(parents=True, exist_ok=True)
+    (session / 'subject.txt').write_text(subject + '\n')
+    plan = stages(skill, rounds)
+    doc = dict(skill=skill, stages=plan)
+    if prior is not None:
+        prior_final = prior / 'notes' / 'final.md'
+        if not prior_final.is_file():
+            raise ValueError('prior session has no recorded final.md to chain from')
+        (session / 'prior-final.md').write_bytes(prior_final.read_bytes())
+        plan[0]['prompt'] += (f'\nPrior linked session ({prior}): read '
+                              'prior-final.md in this directory before grounding.')
+        doc['prior'] = str(prior)
+    write_json(session / 'checkpoints.json', doc)
+    with Flow(str(session / 'skillflow.db')) as flow:
+        previous = None
+        for step in plan:
+            name = step['name']
+            command = shlex.join([sys.executable, str(Path(__file__).resolve()), '_gate', str(session), name])
+            flow.add_node(name, command)
+            if previous: flow.add_edge(previous, name)
+            previous = name
+    return session
+
+
+USAGE = ('usage: run.sh <debate|reframe> "subject" [rounds] [dir], '
+         'run.sh <brainstorm|review|add-skill> "subject" [dir], '
+         'run.sh resume <dir>, run.sh status <dir>, '
+         'run.sh chain <dir> <skill> [rounds] [newdir]')
+
+
 def main(args=None):
     args = list(sys.argv[1:] if args is None else args)
     try:
@@ -179,30 +229,35 @@ def main(args=None):
             if not (session / 'checkpoints.json').is_file():
                 raise ValueError('not a hybrid panel session; resume old graphs with skillflow run in their original directory')
             return run(session)
+        if args and args[0] == 'status' and len(args) == 2:
+            print(format_status(status_summary(Path(args[1]))))
+            return 0
+        if args and args[0] == 'chain' and 3 <= len(args) <= 5:
+            prior = Path(args[1]).resolve()
+            skill = args[2]
+            if skill not in SKILLS:
+                raise ValueError(f'unknown skill {skill!r}')
+            if not (prior / 'checkpoints.json').is_file():
+                raise ValueError('not a hybrid panel session to chain from')
+            variable = skill in ('debate', 'reframe')
+            rest = args[3:]
+            if len(rest) > 2: raise ValueError('too many arguments')
+            if rest and variable and rest[0].isdigit():
+                rounds, rest = int(rest[0]), rest[1:]
+            else:
+                rounds = 3
+            folder = rest[0] if rest else f'session-{datetime.now():%Y%m%d-%H%M%S-%f}'
+            subject = (prior / 'subject.txt').read_text().strip()
+            session = start_session(skill, subject, rounds, folder, prior)
+            return run(session)
         if len(args) < 2 or args[0] not in SKILLS:
-            raise ValueError('usage: run.sh <debate|reframe> "subject" [rounds] [dir], run.sh <brainstorm|review> "subject" [dir], or run.sh resume <dir>')
+            raise ValueError(USAGE)
         skill, subject = args[:2]
-        if not subject.strip(): raise ValueError('subject is empty')
         variable = skill in ('debate', 'reframe')
         if len(args) > (4 if variable else 3): raise ValueError('too many arguments')
         rounds = int(args[2]) if variable and len(args) > 2 else 3
-        if not 1 <= rounds <= 8: raise ValueError('rounds must be 1-8')
         folder = args[3] if variable and len(args) > 3 else args[2] if not variable and len(args) > 2 else f'session-{datetime.now():%Y%m%d-%H%M%S-%f}'
-        session = Path(folder).resolve()
-        if session.exists() and any(session.iterdir()):
-            raise ValueError('session directory is not empty; use resume or a fresh directory')
-        session.mkdir(parents=True, exist_ok=True)
-        (session / 'subject.txt').write_text(subject + '\n')
-        plan = stages(skill, rounds)
-        write_json(session / 'checkpoints.json', dict(skill=skill, stages=plan))
-        with Flow(str(session / 'skillflow.db')) as flow:
-            previous = None
-            for step in plan:
-                name = step['name']
-                command = shlex.join([sys.executable, str(Path(__file__).resolve()), '_gate', str(session), name])
-                flow.add_node(name, command)
-                if previous: flow.add_edge(previous, name)
-                previous = name
+        session = start_session(skill, subject, rounds, folder)
         return run(session)
     except (ValueError, OSError, FlowError, KeyError) as exc:
         print(f'error: {exc}', file=sys.stderr)
