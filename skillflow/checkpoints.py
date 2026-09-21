@@ -8,6 +8,7 @@ not proof of intellectual quality. Old databases retain their original graphs.
 """
 import hashlib
 import json
+import os
 from pathlib import Path
 import shlex
 import sys
@@ -16,10 +17,12 @@ from datetime import datetime
 try:
     from skillflow.dag import Flow, FlowError
     from skillflow.session import format_status, status_summary
+    from skillflow.skills import read_shape
 except ImportError:  # direct-script execution: import from the enclosing tree
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from skillflow.dag import Flow, FlowError
     from skillflow.session import format_status, status_summary
+    from skillflow.skills import read_shape
 
 
 def _resume_command(session):
@@ -32,7 +35,35 @@ def _resume_command(session):
 SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
 
 
+def _custom_shape(skill):
+    """Resolve a third-party skill's declared shape from its SKILL.md."""
+    root = os.environ.get('SKILLFLOW_SKILLS_ROOT')
+    if not root:
+        raise ValueError(f'unknown skill {skill!r}')
+    shape, error = read_shape(skill, root)
+    if error:
+        raise ValueError(error)
+    return shape
+
+
+def _custom_stages(skill):
+    shape = _custom_shape(skill)
+    if shape == 'single':
+        return [{'name': 'do', 'artifact': 'final.md', 'round': 0,
+                 'prompt': 'Do the work described in SKILL.md for this subject. '
+                           'Write final.md as the complete result.'}]
+    if shape == 'setup-execute':
+        return [{'name': 'setup', 'artifact': 'levelset.md', 'round': 0,
+                 'prompt': 'Set up and levelset: read the request and relevant sources, '
+                           'state the goal, constraints, and plan. Write levelset.md.'},
+                {'name': 'execute', 'artifact': 'final.md', 'round': 0,
+                 'prompt': 'Execute the levelset plan. Write final.md as the complete result.'}]
+    raise ValueError(f'skill {skill!r} is a prose guide; read its SKILL.md. No phases to run.')
+
+
 def stages(skill, rounds):
+    if skill not in SKILLS:
+        return _custom_stages(skill)
     result = [{'name': 'ground', 'artifact': 'ground.md', 'round': 0,
                'prompt': 'Read the request, corrections, and relevant live sources. When prior decisions, rejected approaches, failure modes, or session history could materially change the room, use bounded semantic work-history recall or the supplied history; current instruction and live sources govern. Show the grounding in the conversation. Do not choose the answer.'}]
     def add(name, artifact, prompt, number=0, decision=False):
@@ -193,7 +224,8 @@ def run(session):
 def start_session(skill, subject, rounds, folder, prior=None):
     """Create a session directory, plan, and gate DAG. Returns the path."""
     if not subject.strip(): raise ValueError('subject is empty')
-    if not 1 <= rounds <= 8: raise ValueError('rounds must be 1-8')
+    if skill in SKILLS and not 1 <= rounds <= 8:
+        raise ValueError('rounds must be 1-8')
     session = Path(folder).resolve()
     if session.exists() and any(session.iterdir()):
         raise ValueError('session directory is not empty; use resume or a fresh directory')
@@ -223,6 +255,7 @@ def start_session(skill, subject, rounds, folder, prior=None):
 
 USAGE = ('usage: run.sh <debate|reframe> "subject" [rounds] [dir], '
          'run.sh <brainstorm|review|add-skill> "subject" [dir], '
+         'run.sh <custom-skill> "subject" [dir], '
          'run.sh resume <dir>, run.sh status <dir>, '
          'run.sh chain <dir> <skill> [rounds] [newdir]')
 
@@ -247,7 +280,7 @@ def main(args=None):
             prior = Path(args[1]).resolve()
             skill = args[2]
             if skill not in SKILLS:
-                raise ValueError(f'unknown skill {skill!r}')
+                _custom_shape(skill)
             if not (prior / 'checkpoints.json').is_file():
                 raise ValueError('not a hybrid panel session to chain from')
             variable = skill in ('debate', 'reframe')
@@ -261,9 +294,19 @@ def main(args=None):
             subject = (prior / 'subject.txt').read_text().strip()
             session = start_session(skill, subject, rounds, folder, prior)
             return run(session)
-        if len(args) < 2 or args[0] not in SKILLS:
+        if len(args) < 2:
             raise ValueError(USAGE)
         skill, subject = args[:2]
+        if skill not in SKILLS:
+            if _custom_shape(skill) == 'prose':
+                root = os.environ.get('SKILLFLOW_SKILLS_ROOT', '.')
+                path = Path(root) / skill / 'SKILL.md'
+                print(f'skill {skill!r} is a prose guide; read {path}. No phases to run.')
+                return 0
+            if len(args) > 3: raise ValueError('too many arguments')
+            folder = args[2] if len(args) > 2 else f'session-{datetime.now():%Y%m%d-%H%M%S-%f}'
+            session = start_session(skill, subject, 0, folder)
+            return run(session)
         variable = skill in ('debate', 'reframe')
         if len(args) > (4 if variable else 3): raise ValueError('too many arguments')
         rounds = int(args[2]) if variable and len(args) > 2 else 3

@@ -168,6 +168,41 @@ def cmd_init_skills(args) -> int:
     return 0
 
 
+def _choose_shape() -> str:
+    from .skills import SHAPES
+    print("Pick the smallest shape that fits:")
+    print("  prose         quick guide, no ladder: checklists, how-tos")
+    print("  single        one gated node: triage, write, or decide one thing")
+    print("  setup-execute two nodes: setup and levelset, then execute")
+    while True:
+        try:
+            choice = input("shape [prose]: ").strip() or "prose"
+        except EOFError:
+            print()
+            return "prose"
+        if choice in SHAPES:
+            return choice
+        print(f"unknown shape {choice!r} (expected one of: "
+              f"{', '.join(SHAPES)})")
+
+
+def cmd_new_skill(args) -> int:
+    from .skills import scaffold
+    shape = args.shape or _choose_shape()
+    try:
+        path = scaffold(args.id, args.dir, shape, args.description)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    print(f"created {path}")
+    if shape == "prose":
+        print("prose guide: nothing to run; read it in-session.")
+    else:
+        print(f"walk the gates: python3 {args.dir}/_shared/run.py "
+              f"{args.id} \"<subject>\" /tmp/{args.id}-test")
+    return 0
+
+
 def cmd_status(args) -> int:
     try:
         with _flow(args) as flow:
@@ -253,6 +288,17 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--dir", default="skills",
                    help="target skill store (default: ./skills)")
     p.set_defaults(func=cmd_init_skills)
+
+    p = sub.add_parser("new-skill", help="scaffold a new skill in a store")
+    p.add_argument("id", help="skill id: lowercase ASCII, digits, hyphens")
+    p.add_argument("--dir", default="skills",
+                   help="target skill store (default: ./skills)")
+    p.add_argument("--shape", choices=["prose", "single", "setup-execute"],
+                   default=None,
+                   help="skill shape (guides you when omitted)")
+    p.add_argument("--description", default="TODO: one sentence on what it does.",
+                   help="one-sentence frontmatter description")
+    p.set_defaults(func=cmd_new_skill)
 
     p = sub.add_parser("status", help="show the latest (or given) run")
     p.add_argument("--run", type=int, default=None)

@@ -122,6 +122,25 @@ lone SKILL.md is insufficient. From a checkout, `bash panel/run.sh ...` is
 equivalent, and `scripts/install_panel_skills.py` additionally installs the
 repo-only authoring skill.
 
+## Authoring skills
+
+Third-party skills come in three shapes, declared in frontmatter — pick the
+smallest that fits:
+
+- `prose` (default): a quick guide with no ladder. Nothing runs.
+- `single`: one gated node. The session does the work, writes `final.md`.
+- `setup-execute`: two nodes. Setup and levelset (`levelset.md`), then
+  execute (`final.md`).
+
+```sh
+skillflow new-skill my-skill --dir ./skills --shape single
+python3 ./skills/_shared/run.py my-skill "subject" /tmp/my-session
+```
+
+Omit `--shape` for a guided menu. The full contract ships in every store at
+`_shared/authoring.md` (also at
+[skillflow/skills/_shared/authoring.md](skillflow/skills/_shared/authoring.md)).
+
 Existing session DBs retain their graphs and can still use `skillflow run` from
 that session directory. All five skills run the same hybrid loop. The selector
 and seed tools remain available for explicit standalone use and old sessions;

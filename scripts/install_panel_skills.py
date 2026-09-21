@@ -20,7 +20,8 @@ def install(destination):
         shutil.copy2(source / name / 'SKILL.md', target / 'SKILL.md')
     shared = destination / '_shared'
     shared.mkdir(parents=True, exist_ok=True)
-    for name in ('panel.md', 'running-on-skillflow.md', 'run.py'):
+    for name in ('panel.md', 'running-on-skillflow.md', 'run.py',
+                 'authoring.md'):
         shutil.copy2(source / '_shared' / name, shared / name)
     shutil.copy2(ROOT / 'skillflow/panel/panelists.json', shared / 'panelists.json')
     (shared / 'runner.json').write_text(json.dumps({'runner': str(ROOT / 'panel/run.sh')}, indent=2) + '\n')
