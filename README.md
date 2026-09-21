@@ -1,10 +1,15 @@
-# Skillflow
+# Skill DAG
 
-A minimal SQLite-backed DAG runner. Define nodes (shell commands) and
-dependency edges, then run the graph in topological order. Every run and
-per-node result is recorded in a plain SQLite file — no servers, no
-background services, no external dependencies beyond the Python standard
-library.
+A minimal SQLite-backed DAG runner (`pip install skill-dag`). Define nodes
+(shell commands) and dependency edges, then run the graph in topological
+order. Every run and per-node result is recorded in a plain SQLite file —
+no servers, no background services, no external dependencies beyond the
+Python standard library.
+
+It doubles as a skills runner: the repo ships panel skills (debate,
+brainstorm, review, reframe) that deliberate in rounds on the DAG, with
+gates that fail closed. The `skillflow` command, module, and MCP tools keep
+their names.
 
 ## Install
 Requires Python 3.10+.
