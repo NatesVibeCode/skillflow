@@ -11,7 +11,7 @@ SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
 
 def install(destination):
     destination = destination.expanduser().resolve()
-    source = ROOT / 'skills'
+    source = ROOT / 'skillflow' / 'skills'
     if destination == source:
         raise ValueError('install destination must differ from the source skills tree')
     for name in SKILLS:

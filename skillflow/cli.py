@@ -151,6 +151,23 @@ def cmd_demo(args) -> int:
     return 0 if run["status"] == "ok" else 1
 
 
+def cmd_init_skills(args) -> int:
+    from .skills import check_dir, init_dir
+    try:
+        installed = init_dir(args.dir)
+    except (OSError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    errors = check_dir(args.dir)
+    for err in errors:
+        print(f"error: {err}", file=sys.stderr)
+    if errors:
+        return 1
+    print(f"installed {len(installed)} skills "
+          f"({', '.join(installed)}) into {args.dir}")
+    return 0
+
+
 def cmd_status(args) -> int:
     try:
         with _flow(args) as flow:
@@ -230,6 +247,12 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("demo", help="run a self-contained demo graph")
     p.set_defaults(func=cmd_demo)
+
+    p = sub.add_parser("init-skills",
+                       help="install the shipped skills into a directory")
+    p.add_argument("--dir", default="skills",
+                   help="target skill store (default: ./skills)")
+    p.set_defaults(func=cmd_init_skills)
 
     p = sub.add_parser("status", help="show the latest (or given) run")
     p.add_argument("--run", type=int, default=None)

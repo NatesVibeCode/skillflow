@@ -1,41 +1,18 @@
-"""Offline shape check for skills/*/SKILL.md (runs in CI and locally).
+"""Offline shape check for skillflow/skills/*/SKILL.md (runs in CI and locally).
 
-Mirrors the portable rules without needing a harness validator:
-frontmatter name matches the directory, description is one line,
-id charset is portable.
+Validates the source tree, including the repo-only authoring skill.
+Installed stores are validated by `skillflow init-skills` via the same rules.
 """
 
 import os
-import re
 import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-SKILLS_DIR = os.path.join(HERE, "..", "skills")
-ID_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+sys.path.insert(0, os.path.join(HERE, ".."))
 
+from skillflow.skills import check  # noqa: E402
 
-def check(skill_id: str) -> list:
-    errors = []
-    if not ID_RE.match(skill_id):
-        errors.append(f"{skill_id}: bad id charset")
-    path = os.path.join(SKILLS_DIR, skill_id, "SKILL.md")
-    if not os.path.isfile(path):
-        return errors + [f"{skill_id}: missing SKILL.md"]
-    text = open(path).read()
-    match = re.match(r"^---\n(.*?)\n---\n", text, re.S)
-    if not match:
-        return errors + [f"{skill_id}: missing frontmatter"]
-    front = match.group(1)
-    name = re.search(r"^name:\s*(\S+)", front, re.M)
-    desc = re.search(r"^description:\s*(.+)", front, re.M)
-    if not name:
-        errors.append(f"{skill_id}: frontmatter has no name")
-    elif name.group(1) != skill_id:
-        errors.append(
-            f"{skill_id}: frontmatter name {name.group(1)!r} != directory")
-    if not desc or not desc.group(1).strip():
-        errors.append(f"{skill_id}: frontmatter has no description")
-    return errors
+SKILLS_DIR = os.path.join(HERE, "..", "skillflow", "skills")
 
 
 def main() -> int:
@@ -46,7 +23,7 @@ def main() -> int:
         return 1
     errors = []
     for skill_id in skills:
-        errors.extend(check(skill_id))
+        errors.extend(check(skill_id, SKILLS_DIR))
     for err in errors:
         print(f"error: {err}", file=sys.stderr)
     if not errors:

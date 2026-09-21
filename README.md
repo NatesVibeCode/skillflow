@@ -20,12 +20,14 @@ pip install skill-dag
 pip install "skill-dag[mcp]"
 ```
 
-Or from a checkout (needed for the panel skills and `panel/run.sh`):
+Or from a checkout:
 
 ```sh
 pip install .
 pip install ".[mcp]"
 ```
+
+Both include the four shipped skills (brainstorm, debate, reframe, review).
 
 ## Use
 
@@ -104,18 +106,21 @@ Brainstorm/review have two mandatory phases. Debate/reframe accept a 1–8 round
 ceiling (default 3); the session decides whether further rounds are worthwhile.
 `status <dir>` reports the current gate; `chain <dir> <skill>` starts a new
 skill carrying the prior final as evidence. Full method and recovery
-instructions are in [the shared protocol](skills/_shared/running-on-skillflow.md).
+instructions are in [the shared protocol](skillflow/skills/_shared/running-on-skillflow.md).
 
-Install the five skills **with their shared prose and launcher**:
+Install the four skills **with their shared prose and launcher** into any
+directory — no checkout needed:
 
 ```sh
-python3 scripts/install_panel_skills.py --skills-dir ~/.codex/skills
-# Another local skill root can be passed instead, or with another --skills-dir.
+skillflow init-skills --dir ~/.codex/skills
+python3 ~/.codex/skills/_shared/run.py debate "ship it friday" 3 /tmp/my-debate
 ```
 
-The installed launcher resolves the checkout from a local location file, so it
-works from any repo. Reinstall if the checkout moves. No harness settings, other
-skills, or authentication are modified. Copying a lone SKILL.md is insufficient.
+The installed launcher uses the packaged runner, so it works from any repo.
+No harness settings, other skills, or authentication are modified. Copying a
+lone SKILL.md is insufficient. From a checkout, `bash panel/run.sh ...` is
+equivalent, and `scripts/install_panel_skills.py` additionally installs the
+repo-only authoring skill.
 
 Existing session DBs retain their graphs and can still use `skillflow run` from
 that session directory. All five skills run the same hybrid loop. The selector

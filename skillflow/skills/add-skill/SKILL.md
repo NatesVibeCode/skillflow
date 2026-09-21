@@ -22,7 +22,8 @@ to end the turn.
 
 ## Ground in the repo
 
-Read the request and the current `skills/` layout plus `panel/checkpoints.py`.
+Read the request and the current `skillflow/skills/` layout plus
+`skillflow/checkpoints.py`.
 A new skill is three things: a thin `SKILL.md`, a stage plan registered in
 `checkpoints.py`, and proof it runs. Keep the user's scope; do not redesign
 sibling skills along the way.
@@ -32,7 +33,7 @@ sibling skills along the way.
 Write `draft.md` with the new SKILL.md text plus the `checkpoints.py` diff.
 Rules for the new skill:
 
-- Directory `skills/<id>/` with one `SKILL.md`. The id is lowercase ASCII,
+- Directory `skillflow/skills/<id>/` with one `SKILL.md`. The id is lowercase ASCII,
   digits, hyphens only — and it must match the frontmatter `name`.
 - Frontmatter is exactly `name` + one-sentence `description`.
 - Body stays thin: what it is, the launcher command, and the record format.

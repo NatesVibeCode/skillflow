@@ -13,10 +13,21 @@ import shlex
 import sys
 from datetime import datetime
 
-ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(ROOT))
-from skillflow.dag import Flow, FlowError  # noqa: E402
-from skillflow.session import format_status, status_summary  # noqa: E402
+try:
+    from skillflow.dag import Flow, FlowError
+    from skillflow.session import format_status, status_summary
+except ImportError:  # direct-script execution: import from the enclosing tree
+    sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from skillflow.dag import Flow, FlowError
+    from skillflow.session import format_status, status_summary
+
+
+def _resume_command(session):
+    checkout = Path(__file__).resolve().parent.parent / "panel" / "run.sh"
+    if checkout.is_file():
+        return ["bash", str(checkout), "resume", str(session)]
+    return [sys.executable, "-m", "skillflow.checkpoints", "resume",
+            str(session)]
 
 SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
 
@@ -175,7 +186,7 @@ def run(session):
     if result['run']['status'] == 'ok':
         print(f'Complete: session-authored answer at {session / "final.md"}')
         return 0
-    print(f'Resume: {shlex.join(["bash", str(ROOT / "panel/run.sh"), "resume", str(session)])}')
+    print(f'Resume: {shlex.join(_resume_command(session))}')
     return 1
 
 

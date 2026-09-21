@@ -228,7 +228,7 @@ class HybridPanelTest(unittest.TestCase):
         for skill in ('debate', 'brainstorm', 'review', 'reframe',
                       'add-skill'):
             self.assertEqual((destination / skill / 'SKILL.md').read_bytes(),
-                             (ROOT / 'skills' / skill / 'SKILL.md').read_bytes())
+                             (ROOT / 'skillflow' / 'skills' / skill / 'SKILL.md').read_bytes())
         for name in ('panel.md', 'panelists.json', 'running-on-skillflow.md', 'run.py', 'runner.json'):
             self.assertTrue((destination / '_shared' / name).exists())
         result = subprocess.run([sys.executable, str(destination / '_shared/run.py'),
