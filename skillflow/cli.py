@@ -5,6 +5,7 @@ import json
 import os
 import sys
 
+from . import __version__
 from .dag import Flow, FlowError
 
 DEFAULT_DB = os.environ.get("SKILLFLOW_DB", "skillflow.db")
@@ -172,6 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
         prog="skillflow", description="A minimal SQLite-backed DAG runner."
     )
     parser.add_argument("--db", default=DEFAULT_DB, help="path to the SQLite file")
+    parser.add_argument("--version", action="version", version=__version__)
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("init", help="create the database")

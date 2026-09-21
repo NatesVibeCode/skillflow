@@ -1,6 +1,6 @@
 [project]
 name = "skill-dag"
-version = "0.2.0"
+version = "1.0.0"
 description = "A minimal SQLite-backed DAG runner: nodes, edges, run, status."
 readme = "README.md"
 requires-python = ">=3.10"
