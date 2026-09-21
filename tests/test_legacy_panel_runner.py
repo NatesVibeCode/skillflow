@@ -1,6 +1,8 @@
 import json
 import os
+import shlex
 import sqlite3
+import stat
 import subprocess
 import sys
 import tempfile
@@ -25,10 +27,17 @@ class PanelRunnerTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.session = os.path.join(self.tmp.name, "session1")
+        # legacy-run.sh word-splits SKILLFLOW_CMD, so a quoted interpreter
+        # path would not survive there; reach the CLI through PATH instead.
+        shim = os.path.join(self.tmp.name, "bin", "skillflow")
+        os.makedirs(os.path.dirname(shim))
+        with open(shim, "w") as fh:
+            fh.write(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -m skillflow \"$@\"\n")
+        os.chmod(shim, os.stat(shim).st_mode | stat.S_IXUSR | stat.S_IXGRP)
         self.env = dict(
             os.environ,
             PYTHONPATH=ROOT,
-            SKILLFLOW_CMD=f"{sys.executable} -m skillflow.cli",
+            PATH=os.path.dirname(shim) + os.pathsep + os.environ["PATH"],
         )
 
     def tearDown(self):

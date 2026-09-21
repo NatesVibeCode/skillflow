@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import stat
 import subprocess
 import sys
@@ -35,7 +36,7 @@ class HarnessSkillDriftTest(unittest.TestCase):
         shim = os.path.join(self.tmp.name, "bin", "skillflow")
         os.makedirs(os.path.dirname(shim))
         with open(shim, "w") as fh:
-            fh.write(f"#!/bin/sh\nexec {sys.executable} -m skillflow \"$@\"\n")
+            fh.write(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} -m skillflow \"$@\"\n")
         os.chmod(shim, os.stat(shim).st_mode | stat.S_IXUSR | stat.S_IXGRP)
         self.env = dict(
             os.environ, PATH=os.path.dirname(shim) + os.pathsep + os.environ["PATH"]
