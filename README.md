@@ -7,9 +7,19 @@ background services, no external dependencies beyond the Python standard
 library.
 
 ## Install
+Requires Python 3.10+.
+
+```sh
+pip install skill-flow
+# with the MCP server:
+pip install "skill-flow[mcp]"
+```
+
+Or from a checkout (needed for the panel skills and `panel/run.sh`):
 
 ```sh
 pip install .
+pip install ".[mcp]"
 ```
 
 ## Use
@@ -103,7 +113,7 @@ Everything above is also an MCP server (stdio). Eight tools: `skillflow_init`,
 `skillflow_status`, `panel_seed`, `panel_select_room`.
 
 ```sh
-pip install ".[mcp]"
+pip install "skill-flow[mcp]"
 python -m skillflow.mcp_server
 ```
 
