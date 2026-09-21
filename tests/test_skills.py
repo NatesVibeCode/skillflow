@@ -151,6 +151,51 @@ class TestSkillStore(unittest.TestCase):
         self.assertEqual(finished.returncode, 0, finished.stdout)
         self.assertIn("Complete", finished.stdout)
 
+    def test_skill_dag_walks_full_ladder(self):
+        init_dir(self.store)
+        session = os.path.join(self.tmp.name, "session")
+        started = self._run_py("skill-dag", "a skill idea", session)
+        self.assertEqual(started.returncode, 1, started.stderr)
+        self.assertIn("PAUSE ground", started.stdout)
+        self._write(session, "ground.md")
+        gates = [("intake", "intake.md"), ("decide", None),
+                 ("shape", "shape.md"), ("build", "draft.md"),
+                 ("prove", "record.md"), ("finalize", "final.md")]
+        for gate, artifact in gates:
+            result = self._run_py("resume", session)
+            self.assertEqual(result.returncode, 1, result.stdout)
+            self.assertIn(f"PAUSE {gate}", result.stdout)
+            if artifact is None:
+                self._write(session, "decision.json",
+                             '{"action": "continue", "reason": "build it"}')
+            else:
+                self._write(session, artifact)
+        finished = self._run_py("resume", session)
+        self.assertEqual(finished.returncode, 0, finished.stdout)
+        self.assertIn("Complete", finished.stdout)
+
+    def test_skill_dag_decline_skips_to_finalize(self):
+        init_dir(self.store)
+        session = os.path.join(self.tmp.name, "session")
+        started = self._run_py("skill-dag", "a skill idea", session)
+        self.assertEqual(started.returncode, 1, started.stderr)
+        self._write(session, "ground.md")
+        result = self._run_py("resume", session)
+        self.assertIn("PAUSE intake", result.stdout)
+        self._write(session, "intake.md")
+        result = self._run_py("resume", session)
+        self.assertIn("PAUSE decide", result.stdout)
+        self._write(session, "decision.json",
+                     '{"action": "finish", "reason": "use existing skill"}')
+        result = self._run_py("resume", session)
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn("skipped shape", result.stdout)
+        self.assertIn("PAUSE finalize", result.stdout)
+        self._write(session, "final.md")
+        finished = self._run_py("resume", session)
+        self.assertEqual(finished.returncode, 0, finished.stdout)
+        self.assertIn("Complete", finished.stdout)
+
     def test_prose_skill_has_no_phases(self):
         init_dir(self.store)
         self.assertEqual(main(["new-skill", "guide", "--dir", self.store,

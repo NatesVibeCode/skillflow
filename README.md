@@ -27,7 +27,8 @@ pip install .
 pip install ".[mcp]"
 ```
 
-Both include the four shipped skills (brainstorm, debate, reframe, review).
+Both include the five shipped skills (brainstorm, debate, reframe,
+review, skill-dag).
 
 ## Use
 
@@ -108,13 +109,18 @@ ceiling (default 3); the session decides whether further rounds are worthwhile.
 skill carrying the prior final as evidence. Full method and recovery
 instructions are in [the shared protocol](skillflow/skills/_shared/running-on-skillflow.md).
 
-Install the four skills **with their shared prose and launcher** into any
+Install the five skills **with their shared prose and launcher** into any
 directory — no checkout needed:
 
 ```sh
 skillflow init-skills --dir ~/.codex/skills
 python3 ~/.codex/skills/_shared/run.py debate "ship it friday" 3 /tmp/my-debate
 ```
+
+Start with the `skill-dag` skill: it walks you through bringing an
+existing skill into your store or making a new one — intake, shape choice
+with the single-vs-two argument made explicit, build, and proof. You
+describe what you want; the session drives.
 
 The installed launcher uses the packaged runner, so it works from any repo.
 No harness settings, other skills, or authentication are modified. Copying a
@@ -142,7 +148,7 @@ Omit `--shape` for a guided menu. The full contract ships in every store at
 [skillflow/skills/_shared/authoring.md](skillflow/skills/_shared/authoring.md)).
 
 Existing session DBs retain their graphs and can still use `skillflow run` from
-that session directory. All five skills run the same hybrid loop. The selector
+that session directory. All six skills run the same hybrid loop. The selector
 and seed tools remain available for explicit standalone use and old sessions;
 the conversational skills no longer depend on them.
 

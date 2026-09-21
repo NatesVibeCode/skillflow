@@ -32,7 +32,8 @@ def _resume_command(session):
     return [sys.executable, "-m", "skillflow.checkpoints", "resume",
             str(session)]
 
-SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
+SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill',
+        'skill-dag')
 
 
 def _custom_shape(skill):
@@ -81,6 +82,33 @@ def stages(skill, rounds):
         add('finalize', 'final.md',
             'Write the final answer yourself: the new skill, its wiring, '
             'and its proof. The DAG will not summarize for you.')
+        return result
+    if skill == 'skill-dag':
+        add('intake', 'intake.md',
+            'Survey the request, any existing skill text, and the current store '
+            'layout. Check for overlap and apply the fit criteria. Recommend '
+            'import, create, or decline, with reasons.')
+        add('decide', 'decision.json',
+            'Judge the intake yourself. Write {"action":"continue|finish","reason":"specific reason"}. '
+            'Continue to build the skill; finish only when no skill is needed, '
+            'naming what to do instead. The DAG does not infer this for you.',
+            0, True)
+        add('shape', 'shape.md',
+            'Deliberate the shape in writing: argue prose, single, and '
+            'setup-execute, then argue single-vs-two in both directions. Record '
+            'the choice and its reason. Stop and point at the repo authoring flow '
+            'if only a custom ladder fits.')
+        add('build', 'draft.md',
+            'Write the new SKILL.md, or the reshaped one plus change notes. Keep '
+            'the body thin; the procedure goes in the phases, never in prose.')
+        add('prove', 'record.md',
+            'Record the validator output, the gate-walk result for DAG shapes in '
+            'a scratch session, and the leak-grep result. All three must pass '
+            'before finalizing.')
+        add('finalize', 'final.md',
+            'Write the final answer yourself: the skill, its wiring, and its '
+            'proof — or the decline with its guidance. The DAG will not '
+            'summarize for you.')
         return result
     count = rounds if skill in ('debate', 'reframe') else 2
     for n in range(1, count + 1):
@@ -254,7 +282,7 @@ def start_session(skill, subject, rounds, folder, prior=None):
 
 
 USAGE = ('usage: run.sh <debate|reframe> "subject" [rounds] [dir], '
-         'run.sh <brainstorm|review|add-skill> "subject" [dir], '
+         'run.sh <brainstorm|review|add-skill|skill-dag> "subject" [dir], '
          'run.sh <custom-skill> "subject" [dir], '
          'run.sh resume <dir>, run.sh status <dir>, '
          'run.sh chain <dir> <skill> [rounds] [newdir]')

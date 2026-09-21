@@ -32,10 +32,11 @@ acting before aligning would waste work: migrations, investigations,
 multi-part builds. Same launcher as `single`.
 
 Rule of thumb: prose until skipping steps hurts, `single` until acting
-before aligning hurts, `setup-execute` after that. The four shipped skills
-(brainstorm, debate, reframe, review) are custom-ladder exceptions with
-their own phases; new skills should not invent new ladders. To propose one,
-contribute upstream instead.
+before aligning hurts, `setup-execute` after that. The five shipped skills
+use custom ladders with their own phases. New skills use one of the three
+shapes above — run the `skill-dag` intake skill and it walks you through
+shape choice, build, and proof. To propose a new ladder, contribute
+upstream instead.
 
 ## Rules for a new skill
 

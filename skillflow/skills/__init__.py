@@ -4,7 +4,7 @@ import os
 import re
 import shutil
 
-SKILL_IDS = ("brainstorm", "debate", "reframe", "review")
+SKILL_IDS = ("brainstorm", "debate", "reframe", "review", "skill-dag")
 SHARED_FILES = ("panel.md", "running-on-skillflow.md", "run.py", "authoring.md")
 SHAPES = ("prose", "single", "setup-execute")
 DEFAULT_SHAPE = "prose"

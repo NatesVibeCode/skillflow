@@ -14,6 +14,7 @@ python3 "<skills-root>/_shared/run.py" brainstorm "<goal>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" review "<work under review>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" reframe "<current approach>" 3 "<session-dir>"
 python3 "<skills-root>/_shared/run.py" add-skill "<skill name: one line>" "<session-dir>"
+python3 "<skills-root>/_shared/run.py" skill-dag "<skill idea or existing skill>" "<session-dir>"
 python3 "<skills-root>/_shared/run.py" resume "<session-dir>"
 python3 "<skills-root>/_shared/run.py" status "<session-dir>"
 python3 "<skills-root>/_shared/run.py" chain "<session-dir>" review "<new-dir>"
@@ -97,4 +98,4 @@ useful room, not a list reporting what the room did.
 
 Old session databases keep their original graph. Resume them with their original
 `skillflow run`, or start a fresh hybrid session using the old work as evidence.
-All five skills run this same hybrid loop.
+All six skills run this same hybrid loop.

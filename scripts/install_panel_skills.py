@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Install the five panel skills plus their shared prose and local launcher."""
+"""Install the six panel skills plus their shared prose and local launcher."""
 import argparse
 import json
 from pathlib import Path
 import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
-SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill')
+SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill',
+        'skill-dag')
 
 
 def install(destination):

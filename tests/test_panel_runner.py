@@ -226,7 +226,7 @@ class HybridPanelTest(unittest.TestCase):
                                  '--skills-dir', str(destination)], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         for skill in ('debate', 'brainstorm', 'review', 'reframe',
-                      'add-skill'):
+                      'add-skill', 'skill-dag'):
             self.assertEqual((destination / skill / 'SKILL.md').read_bytes(),
                              (ROOT / 'skillflow' / 'skills' / skill / 'SKILL.md').read_bytes())
         for name in ('panel.md', 'panelists.json', 'running-on-skillflow.md', 'run.py', 'authoring.md', 'runner.json'):
