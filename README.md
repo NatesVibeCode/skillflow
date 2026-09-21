@@ -25,8 +25,8 @@ skillflow status
 
 Options:
 
-- `--db PATH` (or `SKILLFLOW_DB`) selects the SQLite file. Defaults to
-  `./skillflow.db`.
+- `--db PATH` (before the subcommand, e.g. `skillflow --db demo.db run`)
+  or `SKILLFLOW_DB` selects the SQLite file. Defaults to `./skillflow.db`.
 - `show` prints the DAG as JSON.
 - `status [--run ID] [--json]` shows the latest run (or a given one).
 - `run` exits nonzero if any node fails; downstream nodes do not execute
@@ -162,7 +162,7 @@ Muse (`~/.config/muse/settings.json`, JSON under `mcpServers`):
 Point `cwd` at a repo checkout (panel tools need `panel/` beside the
 engine), or `pip install` the package and drop `cwd` for engine-only use.
 Muse documents streamable-HTTP entries; the stdio entry above is confirmed
-live before relying on it.
+working.
 
 ## Develop
 
