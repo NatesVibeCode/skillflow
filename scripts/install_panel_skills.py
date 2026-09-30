@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Install the six panel skills plus their shared prose and local launcher."""
+"""Install panel and discovery skills plus their shared prose and local launcher."""
 import argparse
 import json
 from pathlib import Path
@@ -7,7 +7,7 @@ import shutil
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill',
-        'skill-dag')
+        'skill-dag', 'repo-discover')
 
 
 def install(destination):
@@ -17,8 +17,8 @@ def install(destination):
         raise ValueError('install destination must differ from the source skills tree')
     for name in SKILLS:
         target = destination / name
-        target.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(source / name / 'SKILL.md', target / 'SKILL.md')
+        shutil.copytree(source / name, target, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns('__pycache__', '*.pyc', 'local.json', 'projection.json'))
     shared = destination / '_shared'
     shared.mkdir(parents=True, exist_ok=True)
     for name in ('panel.md', 'running-on-skillflow.md', 'run.py',

@@ -1,10 +1,12 @@
 """Bundled skill store: validate and install the shipped skills."""
 
 import os
+import hashlib
+import json
 import re
 import shutil
 
-SKILL_IDS = ("brainstorm", "debate", "reframe", "review", "skill-dag")
+SKILL_IDS = ("brainstorm", "debate", "reframe", "review", "skill-dag", "repo-discover")
 SHARED_FILES = ("panel.md", "running-on-skillflow.md", "run.py", "authoring.md")
 SHAPES = ("prose", "single", "setup-execute")
 DEFAULT_SHAPE = "prose"
@@ -25,7 +27,17 @@ def _frontmatter(path: str):
     for key in ("name", "description", "shape"):
         found = re.search(rf"^{key}:\s*(.+)", front, re.M)
         if found:
-            fields[key] = found.group(1).strip()
+            value = found.group(1).strip()
+            if value.startswith('"'):
+                try:
+                    value = json.loads(value)
+                except ValueError:
+                    return None
+                if not isinstance(value, str):
+                    return None
+            elif value.startswith("'") and value.endswith("'"):
+                value = value[1:-1].replace("''", "'")
+            fields[key] = value
     return fields
 
 
@@ -37,7 +49,22 @@ def read_shape(skill_id: str, skills_dir: str):
     fields = _frontmatter(path)
     if fields is None:
         return None, f"{skill_id}: missing frontmatter"
-    shape = fields.get("shape", DEFAULT_SHAPE)
+    shape = fields.get("shape")
+    projection = os.path.join(skills_dir, skill_id, "projection.json")
+    if shape is None and os.path.isfile(projection):
+        try:
+            with open(projection) as handle:
+                receipt = json.load(handle)
+            if "shape" in receipt:
+                with open(path, "rb") as handle:
+                    actual = hashlib.sha256(handle.read()).hexdigest()
+                expected = receipt["files"]["SKILL.md"]["projected_sha256"]
+                if receipt.get("skill") != skill_id or actual != expected:
+                    return None, f"{skill_id}: projection entrypoint changed; refresh the native projection"
+                shape = receipt["shape"]
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            return None, f"{skill_id}: invalid projection: {error}"
+    shape = shape or DEFAULT_SHAPE
     if shape not in SHAPES:
         return None, (f"{skill_id}: unknown shape {shape!r} "
                       f"(expected one of: {', '.join(SHAPES)})")
@@ -62,10 +89,9 @@ def check(skill_id: str, skills_dir: str) -> list:
             f"{skill_id}: frontmatter name {fields['name']!r} != directory")
     if not fields.get("description"):
         errors.append(f"{skill_id}: frontmatter has no description")
-    shape = fields.get("shape", DEFAULT_SHAPE)
-    if shape not in SHAPES:
-        errors.append(f"{skill_id}: unknown shape {shape!r} "
-                      f"(expected one of: {', '.join(SHAPES)})")
+    _, shape_error = read_shape(skill_id, skills_dir)
+    if shape_error:
+        errors.append(shape_error)
     return errors
 
 
@@ -153,8 +179,7 @@ def init_dir(target) -> list:
         raise ValueError("install destination must differ from the source skills tree")
     for skill_id in SKILL_IDS:
         dest = os.path.join(target, skill_id)
-        os.makedirs(dest, exist_ok=True)
-        shutil.copy2(os.path.join(DATA_DIR, skill_id, "SKILL.md"),
-                     os.path.join(dest, "SKILL.md"))
+        shutil.copytree(os.path.join(DATA_DIR, skill_id), dest, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("__pycache__", "*.pyc", "local.json", "projection.json"))
     init_shared(target)
     return list(SKILL_IDS)

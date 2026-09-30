@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import closing
 
 ROOT = Path(__file__).resolve().parents[1]
 RUNNER = ROOT / 'panel/run.sh'
@@ -78,7 +79,7 @@ class HybridPanelTest(unittest.TestCase):
                 self.assertEqual((self.session / 'final.md').read_bytes(),
                                  (self.session / 'notes/final.md').read_bytes())
                 self.assertIsNone(self.state()['waiting'])
-                with sqlite3.connect(self.session / 'skillflow.db') as db:
+                with closing(sqlite3.connect(self.session / 'skillflow.db')) as db:
                     cmds = '\n'.join(r[0] for r in db.execute('select cmd from nodes'))
                 for forbidden in ('select_room', 'seed.py', 'stage.py', 'read -p'):
                     self.assertNotIn(forbidden, cmds)
