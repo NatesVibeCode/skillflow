@@ -55,6 +55,7 @@ def start(args):
     parser.add_argument('session', type=Path)
     parser.add_argument('--target', type=Path, required=True)
     parser.add_argument('--root', type=Path, action='append')
+    parser.add_argument('--evidence-root',type=Path,action='append',help='Explicit receipt/artifact scope; never used to widen code search')
     parser.add_argument('--term', action='append')
     parser.add_argument('--limit', type=int, default=1000)
     parser.add_argument('--jobs', type=int, default=4)
@@ -75,10 +76,12 @@ def start(args):
         config[key] = str(path.resolve())
     target = options.target.expanduser().resolve()
     roots = [p.expanduser().resolve() for p in options.root or [target]]
+    evidence_roots=[p.expanduser().resolve() for p in options.evidence_root or []]
     if not options.subject.strip() or not target.is_dir() or not all(p.is_dir() for p in roots):
         raise ValueError('subject and existing target/root directories are required')
     if not any(within(target, p) for p in roots):
         raise ValueError('selected target must be inside a selected discovery root')
+    if not all(p.is_dir() for p in evidence_roots):raise ValueError('evidence roots must be existing directories')
     if not 1 <= options.jobs <= 8 or not 1 <= options.limit <= 10000:
         raise ValueError('jobs must be 1..8 and limit 1..10000')
     terms = list(dict.fromkeys(options.term or [options.subject]))
@@ -104,7 +107,7 @@ def start(args):
     (session / 'subject.txt').write_text(options.subject + '\n')
     write(session / 'local.json', config)
     plan = dict(schema='skillflow.discovery.v1', subject=options.subject,
-                target=str(target), roots=list(map(str, roots)), terms=terms,
+                target=str(target), roots=list(map(str, roots)), evidence_roots=list(map(str,evidence_roots)),terms=terms,
                 limit=options.limit, jobs=options.jobs, config=config,
                 dispatcher=str(skill / 'scripts/discover.py'), runner=str(Path(__file__).resolve()), inputs=pinned,
                 nodes=STEPS, edges=EDGES)
@@ -144,7 +147,7 @@ def validate_evidence(session, plan):
         return
     for row in read(path)['rows']:
         resolved = Path(row['path']).resolve()
-        if not any(within(resolved, Path(root).resolve()) for root in plan['roots']):
+        if not any(within(resolved, Path(root).resolve()) for root in plan['roots']+plan.get('evidence_roots',[])):
             raise ValueError(f'cached source evidence is outside selected scope: {row["path"]}')
         try:
             current = sha(row['path'])
@@ -152,6 +155,8 @@ def validate_evidence(session, plan):
             current = None
         if current != row['current_sha256']:
             raise ValueError(f'cached source evidence changed: {row["path"]}; start a fresh discovery session')
+        if row.get('reference_sha256') and current != row['reference_sha256']:
+            raise ValueError(f'native reference source or receipt changed: {row["path"]}; refresh its native evidence')
 
 
 def invalidate_delivery(session, archive, target):
@@ -228,7 +233,7 @@ def decision(session, plan):
 def execute(session, name, plan):
     artifacts = session / 'artifacts'
     if name == 'scope':
-        return {key: plan[key] for key in ('target', 'roots', 'terms', 'limit', 'inputs')}
+        return {key: plan[key] for key in ('target', 'roots', 'evidence_roots', 'terms', 'limit', 'inputs')}
     if name in ('map', 'lookup', 'search'):
         roots = ['--root', *plan['roots']]
         if name == 'map':
@@ -237,13 +242,14 @@ def execute(session, name, plan):
                  (['where', term] if name == 'lookup' else ['search', term, '--group', 'code,tests,docs,readmes,agents,decisions,config,skills', '--limit', str(plan['limit'])]) + roots + ['--json'])}
                 for term in plan['terms']]
     if name == 'dictionary':
-        result = {operation: dictionary_call(session, plan, operation) for operation in ('status', 'repositories', 'models', 'capabilities', 'processes')}
+        result = {operation: dictionary_call(session, plan, operation) for operation in ('status', 'repositories', 'models', 'capabilities', 'processes', 'terms', 'conflicts', 'contracts', 'research-reviews', 'source-exclusions')}
         result['declarations'] = [dictionary_call(session, plan, 'declarations', term) for term in plan['terms']]
         return result
     if name == 'links':
         dictionary = read(artifacts / 'dictionary.json')
         return dict(relationships=[dictionary_call(session, plan, 'neighbors', r['id']) for r in dictionary['repositories']['rows']],
-                    process_steps=[dictionary_call(session, plan, 'process-steps', p['id']) for p in dictionary['processes']['rows']])
+                    process_steps=[dictionary_call(session, plan, 'process-steps', p['id']) for p in dictionary['processes']['rows']],
+                    scenarios=[dictionary_call(session,plan,'scenarios',p['id']) for p in dictionary['processes']['rows']])
     if name == 'evidence':
         module = query_module(plan)
         database = Path(plan['config']['dictionary_directory']) / 'data/dictionary.sqlite'
@@ -270,23 +276,48 @@ def execute(session, name, plan):
                     collect(child)
         collect(read(artifacts / 'search.json'))
         collect(dictionary['declarations'])
+        for review in dictionary.get('research-reviews', {}).get('rows', []):
+            collect(json.loads(review.get('followup_reviews_json', '[]')))
+        for term in dictionary['terms']['rows']:
+            sources.setdefault(term['source_path'],{'path':term['source_path'],'lines':[]})['lines'].append(term['source_line'])
+        external_receipts=[]
+        def bind_reference(path, digest):
+            full=Path(path).resolve()
+            if not any(within(full,Path(root)) for root in plan['roots']+plan.get('evidence_roots',[])):
+                external_receipts.append({'path':str(full),'reference_sha256':digest,'status':'outside-selected-evidence-scope; not reverified by this DAG'})
+                return
+            source=sources.setdefault(str(full),{'path':str(full),'lines':[]})
+            if source.get('reference_sha256') and source['reference_sha256'] != digest:
+                raise ValueError('conflicting native reference revisions: '+str(full))
+            source['reference_sha256']=digest
+        for contract in dictionary['contracts']['rows']:
+            reference=json.loads(contract['reference_json'])
+            for path, digest in [(reference['owner_path'],reference['sha256']),(reference['consumer_path'],reference['sha256']),(reference['manifest_path'],reference['manifest_sha256'])]:bind_reference(path,digest)
+        for linked in read(artifacts/'links.json')['scenarios']:
+            for scenario in linked['rows']:
+                reference=json.loads(scenario['reference_json'])
+                for source in reference['sources']:
+                    bind_reference(source['path'],source['sha256'])
+                for artifact in [{'path':reference['artifact_path'],'sha256':reference['artifact_sha256']},*reference['native_artifacts']]:
+                    bind_reference(artifact['path'],artifact['sha256'])
         checked = []
         for source in list(sources.values())[:plan['limit']]:
             path = Path(source['path']).resolve()
-            if not any(within(path, Path(root)) for root in plan['roots']):
+            if not any(within(path, Path(root)) for root in plan['roots']+plan.get('evidence_roots',[])):
                 continue
             recorded = module.rows('SELECT sha256 FROM source_file WHERE path=?', (str(path),), database)
             try:
                 current = sha(path)
-                state = 'current' if recorded and recorded[0]['sha256'] == current else 'changed' if recorded else 'not-in-snapshot'
+                expected=source.get('reference_sha256',recorded[0]['sha256'] if recorded else None)
+                state = 'current' if expected == current else 'changed' if expected else 'not-in-snapshot'
                 diagnostic = None
             except OSError as error:
                 current, state, diagnostic = None, 'unreadable-or-missing', str(error)
             checked.append(dict(source, lines=sorted(set(source['lines'])), recorded_sha256=recorded[0]['sha256'] if recorded else None, current_sha256=current, freshness=state, diagnostic=diagnostic))
-        return dict(rows=checked, truncated=len(sources) > plan['limit'] or len(rows) > plan['limit'], limit=plan['limit'])
+        return dict(rows=checked,external_receipts=external_receipts, truncated=len(sources) > plan['limit'] or len(rows) > plan['limit'], limit=plan['limit'])
     if name == 'assemble':
         records = {p.stem: {'path': str(p), 'sha256': sha(p)} for p in sorted(artifacts.glob('*.json')) if p.stem != 'assemble'}
-        packet = dict(schema='skillflow.discovery.packet.v1', subject=plan['subject'], target=plan['target'], roots=plan['roots'], terms=plan['terms'], artifacts=records,
+        packet = dict(schema='skillflow.discovery.packet.v1', subject=plan['subject'], target=plan['target'], roots=plan['roots'],evidence_roots=plan.get('evidence_roots',[]), terms=plan['terms'], artifacts=records,
                       snapshot=read(artifacts / 'dictionary.json')['status']['metadata'],
                       limits='Bounded local source evidence; registry and dictionary descriptions do not establish ownership or runtime readiness.')
         write(session / 'packet.json', packet)

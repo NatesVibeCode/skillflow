@@ -33,7 +33,7 @@ class SurfaceTests(unittest.TestCase):
         self.source.write_text('original source')
         self.config = {'agent_orient': str(self.root / 'agent-orient'), 'dictionary_directory': str(self.root / 'dictionary')}
         self.plan = dict(schema='skillflow.discovery.v1', config=self.config,
-                         target=str(self.root), roots=[str(self.root)], terms=['Symbol'], limit=10,
+                         target=str(self.root), roots=[str(self.root)], evidence_roots=[],terms=['Symbol'], limit=10,
                          jobs=1, dispatcher=str(self.root / 'dispatch.py'),
                          runner=str(ROOT / 'skillflow/discovery.py'),
                          inputs={str(self.source): discovery.sha(self.source)}, nodes=discovery.STEPS, edges=discovery.EDGES)
@@ -69,8 +69,10 @@ class SurfaceTests(unittest.TestCase):
     def test_search_home_relative_roots_are_checked_for_freshness(self):
         dictionary = {key: {'rows': []} for key in ['models', 'capabilities', 'processes']}
         dictionary['declarations'] = []
+        dictionary['terms']={'rows':[]}
+        dictionary['contracts']={'rows':[]}
         discovery.write(self.session / 'artifacts/dictionary.json', dictionary)
-        discovery.write(self.session / 'artifacts/links.json', {'relationships': []})
+        discovery.write(self.session / 'artifacts/links.json', {'relationships': [],'scenarios':[]})
         discovery.write(self.session / 'artifacts/search.json', [{'result': [
             {'root_path': '~/selected', 'path': 'source.py', 'line': 7}]}])
         original = Path.expanduser
@@ -82,6 +84,23 @@ class SurfaceTests(unittest.TestCase):
         self.assertEqual(result['rows'][0]['path'], str(self.source))
         self.assertEqual(result['rows'][0]['lines'], [7])
         self.assertEqual(result['rows'][0]['current_sha256'], discovery.sha(self.source))
+
+    def test_native_receipt_pin_refuses_even_if_gathered_bytes_are_stable(self):
+        discovery.write(self.session / 'artifacts/evidence.json', {'rows': [
+            {'path':str(self.source),'current_sha256':discovery.sha(self.source),'reference_sha256':'0'*64}]})
+        with self.assertRaisesRegex(ValueError,'native reference'):
+            discovery.validate_evidence(self.session,self.plan)
+
+    def test_explicit_evidence_root_does_not_widen_code_scope(self):
+        with tempfile.TemporaryDirectory() as directory:
+            receipt=Path(directory)/'receipt.json';receipt.write_text('{}')
+            row={'path':str(receipt),'current_sha256':discovery.sha(receipt),'reference_sha256':discovery.sha(receipt)}
+            discovery.write(self.session/'artifacts/evidence.json',{'rows':[row]})
+            with self.assertRaisesRegex(ValueError,'scope'):
+                discovery.validate_evidence(self.session,self.plan)
+            scoped=dict(self.plan,evidence_roots=[directory])
+            discovery.validate_evidence(self.session,scoped)
+            self.assertEqual(scoped['roots'],self.plan['roots'])
 
     def test_rewind_invalidates_sealed_delivery(self):
         for name in ['artifacts/deliver.json', 'node-receipts/deliver.json', 'receipt.json', '.decision-sources.json']:

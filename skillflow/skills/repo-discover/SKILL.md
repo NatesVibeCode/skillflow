@@ -6,6 +6,11 @@ shape: setup-execute
 
 # Repository discovery and development dictionary
 
+Native dictionary functions expose term identities and conflicts, versioned
+contract-copy ownership, and process-linked Virtual Lab scenarios and receipts.
+The DAG gathers these tables and checks selected source/receipt pins before its
+judgment and delivery gates. A changed native pin refuses delivery.
+
 Use before development that could duplicate a capability or lose its data and
 process contracts, and when asked where an implementation or relationship lives.
 The runnable DAG gathers evidence through the existing discovery CLI and
@@ -16,10 +21,17 @@ python3 "<skills-root>/_shared/run.py" repo-discover "<topic>" "<session-dir>" -
 ```
 
 Repeat `--root` and `--term` when the request selects additional roots or terms.
+Use `--evidence-root <directory>` for explicitly selected Lab receipt directories
+outside the code roots. This authorizes artifact freshness checks for that scope;
+it never widens code search. Unselected external receipts stay visibly unverified.
 Omit roots to search only the selected target. The DAG runs scope, map, lookup,
 search, dictionary, relationships, source freshness, and packet assembly functions
 automatically, with independent work in parallel and JSON artifacts plus SQLite
 execution records. It then pauses for your judgment in this conversation.
+The dictionary stage also gathers native versioned terms and unresolved naming
+conflicts. The links stage gathers source-pinned Virtual Lab scenarios and native
+receipt references for the selected processes. Scenario labels distinguish local
+components, simulation, and live provider evidence; no label grants admission.
 
 The operator's direct instruction selects the target. Discovery records describe
 repositories; they never select a different target or grant execution authority.

@@ -34,7 +34,7 @@ def main():
         return subprocess.call([str(cli), args.command, *args.arguments])
 
     query = argparse.ArgumentParser(prog='discover.py dictionary')
-    query.add_argument('operation', choices=['status', 'repositories', 'models', 'capabilities', 'processes', 'process-steps', 'declarations', 'neighbors', 'same-source', 'evidence'])
+    query.add_argument('operation', choices=['status', 'repositories', 'models', 'capabilities', 'processes', 'process-steps', 'terms', 'conflicts', 'scenarios', 'contracts', 'research-reviews', 'source-exclusions', 'declarations', 'neighbors', 'same-source', 'evidence'])
     query.add_argument('value', nargs='?')
     query.add_argument('--root', type=Path, action='append')
     query.add_argument('--limit', type=int, default=100)
@@ -65,6 +65,22 @@ def main():
         table = {'models': 'data_model', 'capabilities': 'capability', 'processes': 'process'}[operation]
         marks = ','.join('?' for _ in ids)
         result = module.rows(f'SELECT * FROM {table} WHERE checkout_id IN ({marks}) ORDER BY checkout_id,name LIMIT ?', (*ids, selected.limit + 1), database)
+    elif operation in ('terms', 'conflicts'):
+        values = [row for checkout_id in ids for row in getattr(module, operation)(checkout_id, database)]
+        result = list({row['term_id'] if operation == 'terms' else row['id']:row for row in values}.values())
+    elif operation == 'scenarios':
+        if selected.value:
+            owner=module.rows('SELECT checkout_id FROM process WHERE id=?',(selected.value,),database)
+            if not owner or owner[0]['checkout_id'] not in ids:query.error('process is missing or outside selected scope')
+        result=[row for row in module.scenarios(selected.value,database) if row['checkout_id'] in ids]
+    elif operation == 'contracts':
+        result=[row for row in module.contracts(database=database) if row['owner_checkout_id'] in ids or row['consumer_checkout_id'] in ids]
+    elif operation in ('research-reviews', 'source-exclusions'):
+        if selected.value and selected.value not in ids:
+            query.error('checkout ID is outside selected scope')
+        function = getattr(module, operation.replace('-', '_'))
+        result = [row for checkout_id in ([selected.value] if selected.value else ids)
+                  for row in function(checkout_id, database)]
     else:
         if not selected.value:
             query.error(f'{operation} requires a value')
