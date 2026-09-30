@@ -1,6 +1,6 @@
 [project]
 name = "skill-dag"
-version = "0.1.1"
+version = "0.1.2"
 description = "A minimal SQLite-backed DAG runner: nodes, edges, run, status."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,5 +40,7 @@ include = ["skillflow*"]
 "skillflow.skills" = ["brainstorm/SKILL.md", "debate/SKILL.md",
                       "reframe/SKILL.md", "review/SKILL.md",
                       "skill-dag/SKILL.md",
+                      "repo-discover/SKILL.md", "repo-discover/references/*.md",
+                      "repo-discover/scripts/*.py",
                       "_shared/panel.md", "_shared/running-on-skillflow.md",
                       "_shared/run.py", "_shared/authoring.md"]

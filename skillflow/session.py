@@ -6,6 +6,7 @@ parsing session files by hand.
 """
 
 import json
+import sqlite3
 from pathlib import Path
 
 
@@ -56,10 +57,28 @@ def status_summary(session: str | Path) -> dict:
             mark = "pending"
         rows.append({"name": name, "artifact": stage.get("artifact"),
                      "state": mark})
-    return {"session": str(session), "skill": plan.get("skill"),
+    result = {"session": str(session), "skill": plan.get("skill"),
             "prior": plan.get("prior"), "stop": stop,
             "accepted": len(accepted), "stages": len(stages),
             "waiting": current, "gates": rows}
+    workflow = session / 'workflow.json'
+    database = session / 'skillflow.db'
+    if workflow.is_file() and _read_json(workflow).get('schema') == 'skillflow.discovery.v1' and database.is_file():
+        connection = sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)
+        connection.row_factory = sqlite3.Row
+        try:
+            latest = connection.execute('SELECT * FROM runs ORDER BY id DESC LIMIT 1').fetchone()
+            tasks = [dict(row) for row in connection.execute('''SELECT n.name, r.status, r.exit_code, r.output FROM nodes n
+                LEFT JOIN node_results r ON r.node_id=n.id AND r.run_id=? ORDER BY n.id''', (latest['id'] if latest else None,))]
+        finally:
+            connection.close()
+        failed = [task['name'] for task in tasks if task['status'] == 'failed']
+        status = latest['status'] if latest else 'pending'
+        if status == 'failed' and current and failed == [current['name']]:
+            status = 'paused'
+        result['execution'] = {'status': status, 'run_id': latest['id'] if latest else None,
+                               'failed_tasks': failed, 'tasks': tasks}
+    return result
 
 
 def read_artifact(session: str | Path, name: str) -> str:
@@ -88,6 +107,11 @@ def format_status(summary: dict) -> str:
              f"accepted {summary['accepted']}/{summary['stages']}"]
     if summary.get("prior"):
         lines.append(f"prior: {summary['prior']}")
+    if summary.get('execution'):
+        execution = summary['execution']
+        lines.append(f"execution: {execution['status']} (recorded run {execution['run_id']})")
+        for task in execution['tasks']:
+            lines.append(f"  [{task['status'] or 'pending'}] {task['name']}")
     if summary.get("stop"):
         stop = summary["stop"]
         lines.append(f"stopped: {stop['action']}: {stop['reason']}")

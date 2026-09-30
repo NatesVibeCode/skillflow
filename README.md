@@ -27,8 +27,8 @@ pip install .
 pip install ".[mcp]"
 ```
 
-Both include the five shipped skills (brainstorm, debate, reframe,
-review, skill-dag).
+Both include the six shipped skills (brainstorm, debate, reframe,
+review, skill-dag, repo-discover).
 
 ## Use
 
@@ -109,7 +109,7 @@ ceiling (default 3); the session decides whether further rounds are worthwhile.
 skill carrying the prior final as evidence. Full method and recovery
 instructions are in [the shared protocol](skillflow/skills/_shared/running-on-skillflow.md).
 
-Install the five skills **with their shared prose and launcher** into any
+Install the six skills **with their shared resources and launcher** into any
 directory — no checkout needed:
 
 ```sh
@@ -127,6 +127,31 @@ No harness settings, other skills, or authentication are modified. Copying a
 lone SKILL.md is insufficient. From a checkout, `bash panel/run.sh ...` is
 equivalent, and `scripts/install_panel_skills.py` additionally installs the
 repo-only authoring skill.
+
+### Repository discovery as executable work
+
+`repo-discover` runs a functional DAG: scope → parallel map/lookup/search/dictionary
+queries → relationships/process steps → source freshness → packet assembly →
+session decision → session final answer → sealed receipt. The existing discovery
+CLI and dictionary query functions do the data work. Only ownership/reuse judgment
+and the useful final answer stay in the conversation. It launches no inference.
+
+```sh
+python3 ~/.codex/skills/_shared/run.py repo-discover "existing capability" /tmp/discovery-session --target /chosen/checkout --root /chosen/collection --term "APIName"
+python3 ~/.codex/skills/_shared/run.py resume /tmp/discovery-session
+```
+
+Configure installed `repo-discover/local.json` with `agent_orient` and
+`dictionary_directory` paths. The source bundle contains no operator paths or
+private data. Session artifacts and per-function receipts are JSON; execution
+dependencies/results live in `skillflow.db`. Inputs are hash-pinned, completed
+functions are retained on resume, and truncation/freshness remain explicit.
+
+For native harness projections, `scripts/project_skill.py --skill NAME --target
+/native/skills/NAME --config-json /local/config.json` copies the complete bundle,
+strips Skillflow's shape key, installs the shared launcher, and records source and
+projection hashes. It supports Codex, Muse, and the SDK's installed native store;
+these are projections of the same maintained skills.
 
 ## Authoring skills
 
@@ -148,7 +173,8 @@ Omit `--shape` for a guided menu. The full contract ships in every store at
 [skillflow/skills/_shared/authoring.md](skillflow/skills/_shared/authoring.md)).
 
 Existing session DBs retain their graphs and can still use `skillflow run` from
-that session directory. All six skills run the same hybrid loop. The selector
+that session directory. Panel and authoring skills retain their hybrid pause
+loop; repo-discover runs the functional graph described above. The selector
 and seed tools remain available for explicit standalone use and old sessions;
 the conversational skills no longer depend on them.
 
