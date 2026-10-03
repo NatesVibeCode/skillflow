@@ -61,9 +61,12 @@ def status_summary(session: str | Path) -> dict:
             "prior": plan.get("prior"), "stop": stop,
             "accepted": len(accepted), "stages": len(stages),
             "waiting": current, "gates": rows}
-    workflow = session / 'workflow.json'
     database = session / 'skillflow.db'
-    if workflow.is_file() and _read_json(workflow).get('schema') == 'skillflow.discovery.v1' and database.is_file():
+    workflow = session / 'workflow.json'
+    is_discovery = (workflow.is_file()
+                    and _read_json(workflow).get('schema')
+                    == 'skillflow.discovery.v1')
+    if database.is_file():
         connection = sqlite3.connect(database.resolve().as_uri() + '?mode=ro', uri=True)
         connection.row_factory = sqlite3.Row
         try:
@@ -75,7 +78,18 @@ def status_summary(session: str | Path) -> dict:
         failed = [task['name'] for task in tasks if task['status'] == 'failed']
         status = latest['status'] if latest else 'pending'
         if status == 'failed' and current and failed == [current['name']]:
-            status = 'paused'
+            task = next((item for item in tasks
+                         if item['name'] == current['name']), None)
+            output = (task or {}).get('output') or ''
+            legacy_panel_pause = (
+                not is_discovery
+                and output.startswith(f"PAUSE {current['name']}:")
+                and 'invalid decision' not in output.lower())
+            if is_discovery or legacy_panel_pause:
+                status = 'paused'
+                if legacy_panel_pause:
+                    task['status'] = 'paused'
+                failed = []
         result['execution'] = {'status': status, 'run_id': latest['id'] if latest else None,
                                'failed_tasks': failed, 'tasks': tasks}
     return result

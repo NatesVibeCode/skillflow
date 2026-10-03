@@ -35,7 +35,8 @@ def cmd_add_node(args) -> int:
     try:
         with _flow(args) as flow:
             flow.add_node(args.name, args.cmd, timeout_s=args.timeout,
-                          env=env, cwd=args.cwd)
+                          env=env, cwd=args.cwd,
+                          pause_exit_code=args.pause_exit_code)
     except FlowError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
@@ -123,7 +124,7 @@ def cmd_run(args) -> int:
         print(f"error: {exc}", file=sys.stderr)
         return 1
     print(json.dumps(result, indent=2, default=str))
-    return 0 if result["run"]["status"] == "ok" else 1
+    return 0 if result["run"]["status"] in ("ok", "paused") else 1
 
 
 def cmd_demo(args) -> int:
@@ -240,6 +241,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="extra environment as a JSON object")
     p.add_argument("--cwd", default=None,
                    help="working directory for this node's command")
+    p.add_argument("--pause-exit-code", type=int, default=None,
+                   help="treat this command exit code as a normal DAG pause")
     p.set_defaults(func=cmd_add_node)
 
     p = sub.add_parser("add-edge", help="add a dependency edge (from -> to)")

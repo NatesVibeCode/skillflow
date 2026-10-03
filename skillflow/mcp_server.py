@@ -84,16 +84,19 @@ def skillflow_init(db: str = "skillflow.db") -> dict:
 def skillflow_add_node(db: str = "skillflow.db", name: str = "",
                        cmd: str = "", timeout_s: float | None = None,
                        env: dict | None = None,
-                       cwd: str | None = None) -> dict:
+                       cwd: str | None = None,
+                       pause_exit_code: int | None = None) -> dict:
     """Add a node (a shell command) to the DAG.
 
     timeout_s kills a slow command, env adds environment variables, and
-    cwd sets the working directory. All three are optional.
+    cwd sets the working directory. pause_exit_code marks one command exit
+    code as a normal pause. All are optional.
     """
     try:
         with Flow(db) as flow:
             node_id = flow.add_node(name, cmd, timeout_s=timeout_s,
-                                    env=env, cwd=cwd)
+                                    env=env, cwd=cwd,
+                                    pause_exit_code=pause_exit_code)
     except FlowError as exc:
         return _err(exc)
     return {"ok": True, "id": node_id, "name": name}
@@ -176,11 +179,12 @@ def skillflow_run(db: str = "skillflow.db", jobs: int = 1,
     Use after defining nodes and edges with skillflow_add_node /
     skillflow_add_edge. The first failing node stops downstream nodes;
     the returned record shows per-node status, exit codes, and output
-    (trimmed to 2000 chars per node). Gate nodes that prompt on a
-    terminal fail closed without one — a run containing an unanswered
-    gate stops there, which is the correct outcome, not an error.
+    (trimmed to 2000 chars per node). A node with a configured
+    pause_exit_code stops downstream execution with run status `paused`;
+    ordinary nonzero exits remain failures.
     jobs runs independent nodes concurrently; from_node resumes from one
-    node downstream; retry re-runs from the latest run's first failure.
+    node downstream; retry re-runs from the latest run's first pause or
+    failure.
     """
     return _run_common(db, None, execute=True, jobs=jobs,
                        from_node=from_node, retry=retry)

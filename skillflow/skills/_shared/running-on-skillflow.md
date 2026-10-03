@@ -31,7 +31,8 @@ quota to fill. Brainstorm/review retain their two substantive phases.
 
 ## The same-session loop
 
-1. Run the launcher. Read the checkpoint it reports and the exit status.
+1. Run the launcher. Read the checkpoint and run status it reports. A normal
+   pause is a successful launcher call with an internal `paused` run status.
 2. Do only that phase's work yourself in this conversation, using the skill's
    prose. Show the substantive phase prose in the conversation and save the
    requested artifact after the pause. Do not replace discussion with a status
@@ -42,12 +43,13 @@ quota to fill. Brainstorm/review retain their two substantive phases.
 4. At `finalize`, write `final.md` yourself. Resume once to record it, then give
    the user the answer inline. A link is supplementary, not a replacement.
 
-A normal `PAUSE` exits 1 and returns control to you immediately. It is neither
-a terminal prompt nor a need for a human reply. Do not loop or sleep waiting for
-someone else to write your work. Errors are distinct: fix the local runner issue
-without bypassing it or claiming the checkpoint passed. If the runner is truly
-unavailable, state that pause enforcement is unavailable; you may still perform
-the prose skill with explicit phase breaks and label it as an ungated run.
+A normal `PAUSE` is recorded as a paused node and run, then the launcher exits 0
+and returns control to you immediately. It is neither a terminal prompt nor a
+need for a human reply. Do not loop or sleep waiting for someone else to write
+your work. Invalid decisions, broken ordering, and runner errors remain failures;
+fix them without bypassing the checkpoint or claiming it passed. If the runner is
+truly unavailable, state that pause enforcement is unavailable; you may still
+perform the prose skill with explicit phase breaks and label it as an ungated run.
 
 ## Artifacts and order
 

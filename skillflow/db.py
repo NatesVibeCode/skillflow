@@ -9,7 +9,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     cmd      TEXT NOT NULL DEFAULT '',
     timeout_s REAL,
     env      TEXT,
-    cwd      TEXT
+    cwd      TEXT,
+    pause_exit_code INTEGER
 );
 CREATE TABLE IF NOT EXISTS edges (
     id      INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -42,6 +43,7 @@ MIGRATIONS = (
     ("nodes", "timeout_s", "REAL"),
     ("nodes", "env", "TEXT"),
     ("nodes", "cwd", "TEXT"),
+    ("nodes", "pause_exit_code", "INTEGER"),
 )
 
 

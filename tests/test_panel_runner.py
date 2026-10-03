@@ -30,7 +30,7 @@ class HybridPanelTest(unittest.TestCase):
         args = [skill, 'the actual subject']
         if skill in ('debate', 'reframe'): args.append(str(rounds))
         result = self.call(*args, self.session)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn('PAUSE ground', result.stdout)
         return self.plan()
 
@@ -58,7 +58,7 @@ class HybridPanelTest(unittest.TestCase):
         for _ in range(70):
             if self.current()['name'] == name: return
             result = self.submit()
-            self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.fail(f'never reached {name}')
 
     def test_all_four_complete_in_session_with_phase_boundaries_and_final(self):
@@ -71,7 +71,7 @@ class HybridPanelTest(unittest.TestCase):
                     self.assertEqual(self.current()['name'], step['name'])
                     visited.append(step['name'])
                     result = self.submit()
-                    self.assertEqual(result.returncode, 0 if step['name'] == 'finalize' else 1,
+                    self.assertEqual(result.returncode, 0,
                                      result.stdout + result.stderr)
                 self.assertIn('ground', visited)
                 self.assertIn('activate-1', visited)
@@ -96,7 +96,7 @@ class HybridPanelTest(unittest.TestCase):
             self.assertEqual(self.current()["name"], step["name"])
             visited.append(step["name"])
             result = self.submit()
-            self.assertEqual(result.returncode, 0 if step["name"] == "finalize" else 1,
+            self.assertEqual(result.returncode, 0,
                              result.stdout + result.stderr)
         self.assertEqual(visited[-1], "finalize")
         self.assertIsNone(self.state()["waiting"])
@@ -106,11 +106,11 @@ class HybridPanelTest(unittest.TestCase):
         plan = self.start("debate", 1)
         for step in plan:
             result = self.submit()
-            self.assertEqual(result.returncode, 0 if step["name"] == "finalize" else 1,
+            self.assertEqual(result.returncode, 0,
                              result.stdout + result.stderr)
         chained = Path(self.tmp.name) / "next"
         result = self.call("chain", self.session, "review", chained)
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertIn("PAUSE ground", result.stdout)
         self.assertEqual(
             (chained / "prior-final.md").read_bytes(),
@@ -189,7 +189,7 @@ class HybridPanelTest(unittest.TestCase):
         self.start(rounds=1)
         self.advance_to('round-1')
         result = self.submit('Status: magic\nNo scorecard grammar belongs here.')
-        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(self.current()['name'], 'reflect-1')
 
     def test_changed_accepted_evidence_blocks_until_rewind(self):
@@ -235,7 +235,7 @@ class HybridPanelTest(unittest.TestCase):
         result = subprocess.run([sys.executable, str(destination / '_shared/run.py'),
                                  'review', 'Inspect a change', str(self.session)],
                                 cwd=self.tmp.name, capture_output=True, text=True, timeout=180)
-        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('PAUSE ground', result.stdout)
 
 

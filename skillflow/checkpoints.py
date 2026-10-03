@@ -34,6 +34,7 @@ def _resume_command(session):
 
 SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill',
         'skill-dag')
+PAUSE_EXIT_CODE = 75
 
 
 def _custom_shape(skill):
@@ -211,23 +212,23 @@ def gate(session, name):
         print(f'PAUSE {name}: {stage["prompt"]}\nWrite {path}\nThen resume in this same conversation. This is not a request for human approval.')
         if actual:
             print('This artifact was prefilled before its pause. Reconsider and revise it after this boundary.')
-        return 1
+        return PAUSE_EXIT_CODE
     if state['waiting']['name'] != name:
         print('error: checkpoint order mismatch', file=sys.stderr)
         return 1
     if not path.exists() or not path.read_text().strip():
         print(f'PAUSE {name}: missing or empty {path}\n{stage["prompt"]}')
-        return 1
+        return PAUSE_EXIT_CODE
     if actual == state['waiting']['prefilled']:
         print(f'PAUSE {name}: prefilled artifact has not been revised after the boundary: {path}')
-        return 1
+        return PAUSE_EXIT_CODE
     if stage.get('decision'):
         try:
             choice = read_json(path)
             if not isinstance(choice, dict) or choice.get('action') not in ('continue', 'finish', 'refuse') or not isinstance(choice.get('reason'), str) or not choice['reason'].strip():
                 raise ValueError('requires action continue/finish/refuse and a nonempty reason')
         except (ValueError, TypeError) as exc:
-            print(f'PAUSE {name}: invalid decision: {exc}')
+            print(f'error: invalid decision at {name}: {exc}', file=sys.stderr)
             return 1
         if choice['action'] != 'continue':
             state['stop'] = dict(choice, index=index)
@@ -243,6 +244,11 @@ def gate(session, name):
 
 def run(session):
     with Flow(str(session / 'skillflow.db')) as flow:
+        # Upgrade older panel session graphs in place. Their shape stays fixed;
+        # only the expected checkpoint exit is classified as a normal pause.
+        plan = read_json(session / 'checkpoints.json')
+        for stage in plan['stages']:
+            flow.set_pause_exit_code(stage['name'], PAUSE_EXIT_CODE)
         result = flow.status(flow.run())
     for node in result['nodes']:
         if node.get('output'): print(node['output'].rstrip())
@@ -250,7 +256,7 @@ def run(session):
         print(f'Complete: session-authored answer at {session / "final.md"}')
         return 0
     print(f'Resume: {shlex.join(_resume_command(session))}')
-    return 1
+    return 0 if result['run']['status'] == 'paused' else 1
 
 
 def start_session(skill, subject, rounds, folder, prior=None):
@@ -279,7 +285,7 @@ def start_session(skill, subject, rounds, folder, prior=None):
         for step in plan:
             name = step['name']
             command = shlex.join([sys.executable, str(Path(__file__).resolve()), '_gate', str(session), name])
-            flow.add_node(name, command)
+            flow.add_node(name, command, pause_exit_code=PAUSE_EXIT_CODE)
             if previous: flow.add_edge(previous, name)
             previous = name
     return session

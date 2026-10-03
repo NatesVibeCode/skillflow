@@ -53,7 +53,8 @@ class Flow:
     # -- definition --------------------------------------------------------
 
     def add_node(self, name: str, cmd: str = "", timeout_s=None,
-                 env=None, cwd: str | None = None) -> int:
+                 env=None, cwd: str | None = None,
+                 pause_exit_code: int | None = None) -> int:
         if not name:
             raise FlowError("node name must not be empty")
         if timeout_s is not None and (
@@ -68,17 +69,38 @@ class Flow:
             raise FlowError("env must be a dict of string to string")
         if cwd is not None and not cwd:
             raise FlowError("cwd must not be empty")
+        if pause_exit_code is not None and (
+                isinstance(pause_exit_code, bool)
+                or not isinstance(pause_exit_code, int)
+                or not 1 <= pause_exit_code <= 255):
+            raise FlowError("pause_exit_code must be an integer from 1 to 255")
         try:
             cur = self.conn.execute(
-                "INSERT INTO nodes (name, cmd, timeout_s, env, cwd) "
-                "VALUES (?, ?, ?, ?, ?)",
+                "INSERT INTO nodes "
+                "(name, cmd, timeout_s, env, cwd, pause_exit_code) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
                 (name, cmd, timeout_s,
-                 json.dumps(env) if env is not None else None, cwd),
+                 json.dumps(env) if env is not None else None, cwd,
+                 pause_exit_code),
             )
         except Exception as exc:
             raise FlowError(f"cannot add node {name!r}: {exc}") from exc
         self.conn.commit()
         return cur.lastrowid
+
+    def set_pause_exit_code(self, name: str, exit_code: int | None) -> None:
+        """Configure an existing node's explicit pause exit code."""
+        if exit_code is not None and (
+                isinstance(exit_code, bool)
+                or not isinstance(exit_code, int)
+                or not 1 <= exit_code <= 255):
+            raise FlowError("pause_exit_code must be an integer from 1 to 255")
+        node_id = self._node_id(name)
+        self.conn.execute(
+            "UPDATE nodes SET pause_exit_code = ? WHERE id = ?",
+            (exit_code, node_id),
+        )
+        self.conn.commit()
 
     def _node_id(self, name: str) -> int:
         row = self.conn.execute(
@@ -155,7 +177,8 @@ class Flow:
     def nodes(self) -> list:
         out = []
         for row in self.conn.execute(
-                "SELECT id, name, cmd, timeout_s, env, cwd FROM nodes "
+                "SELECT id, name, cmd, timeout_s, env, cwd, pause_exit_code "
+                "FROM nodes "
                 "ORDER BY name"):
             node = dict(row)
             node["env"] = json.loads(node["env"]) if node["env"] else None
@@ -217,7 +240,13 @@ class Flow:
                 env=environment,
                 cwd=node.get("cwd") or None,
             )
-            status = "ok" if proc.returncode == 0 else "failed"
+            pause_exit_code = node.get("pause_exit_code")
+            if proc.returncode == 0:
+                status = "ok"
+            elif pause_exit_code is not None and proc.returncode == pause_exit_code:
+                status = "paused"
+            else:
+                status = "failed"
             output = _store_output((proc.stdout or "") + (proc.stderr or ""))
             return status, output, proc.returncode
         except Exception as exc:
@@ -337,6 +366,9 @@ class Flow:
             self._record_running(run_id, node["id"])
             status, output, exit_code = self._execute_node(node)
             self._record_done(run_id, node["id"], status, output, exit_code)
+            if status == "paused":
+                overall = "paused"
+                break
             if status != "ok":
                 overall = "failed"
                 break
@@ -356,8 +388,12 @@ class Flow:
             for node, (status, output, exit_code) in zip(level, outcomes):
                 self._record_done(run_id, node["id"], status, output,
                                   exit_code)
-            if any(status != "ok" for status, _, _ in outcomes):
+            statuses = [status for status, _, _ in outcomes]
+            if "failed" in statuses:
                 overall = "failed"
+                break
+            if "paused" in statuses:
+                overall = "paused"
                 break
         self._finish_run(run_id, overall)
         return run_id
@@ -396,7 +432,8 @@ class Flow:
                 """SELECT r.id, r.started_at, r.finished_at, r.status,
                           COUNT(nr.node_id) AS nodes,
                           SUM(nr.status = 'ok') AS ok,
-                          SUM(nr.status = 'failed') AS failed
+                          SUM(nr.status = 'failed') AS failed,
+                          SUM(nr.status = 'paused') AS paused
                    FROM runs r
                    LEFT JOIN node_results nr ON nr.run_id = r.id
                    GROUP BY r.id

@@ -7,9 +7,9 @@ no servers, no background services, no external dependencies beyond the
 Python standard library.
 
 It doubles as a skills runner: the repo ships panel skills (debate,
-brainstorm, review, reframe) that deliberate in rounds on the DAG, with
-gates that fail closed. The `skillflow` command, module, and MCP tools keep
-their names.
+brainstorm, review, reframe) that deliberate in rounds on the DAG. Explicit
+checkpoint exit codes pause a run cleanly; ordinary nonzero exits still fail.
+The `skillflow` command, module, and MCP tools keep their names.
 
 ## Install
 Requires Python 3.10+.
@@ -50,11 +50,14 @@ Options:
 - `status [--run ID] [--json]` shows the latest run (or a given one).
   `runs` lists every run; `diff A B` compares two runs by id.
 - `run` exits nonzero if any node fails; downstream nodes do not execute
-  after a failure. `--jobs N` runs independent nodes concurrently,
-  `--from NAME` resumes from one node downstream, `--retry` re-runs from
-  the latest run's first failure, and `--dry-run` prints the plan only.
-- `add-node` takes `--timeout` (seconds), `--env` (JSON object), and
-  `--cwd` per node. Stored output per node is capped; files carry bulk.
+  after a failure. A node configured with `--pause-exit-code CODE` instead
+  stops downstream execution with run status `paused` and a successful CLI
+  exit. `--jobs N` runs independent nodes concurrently, `--from NAME` resumes
+  from one node downstream, `--retry` re-runs from the latest run's first
+  pause or failure, and `--dry-run` prints the plan only.
+- `add-node` takes `--timeout` (seconds), `--env` (JSON object), `--cwd`,
+  and `--pause-exit-code` per node. Stored output per node is capped; files
+  carry bulk.
 - `demo` runs a self-contained three-node graph. See `examples/` for
   runnable scripts (chain, parallel, retry).
 
@@ -97,8 +100,9 @@ bash panel/run.sh resume /tmp/my-debate
 ```
 
 Each new checkpoint returns control before accepting its artifact, even if a file
-was prefilled. Exit 1 with `PAUSE` means the current session should do the named
-work and resume, not ask a human to fill a file or approve the next phase. Do not
+was prefilled. A `PAUSE` records a `paused` run and exits successfully; the current
+session should do the named work and resume, not ask a human to fill a file or
+approve the next phase. Real runner and checkpoint errors remain failures. Do not
 batch-author future phases. `final.md` is session-authored, never a machine
 concatenation. The receipts prove sequence, not quality. The final output is the
 complete useful room, not a checklist of its conclusions.
