@@ -1,5 +1,6 @@
 """Behavioral checks for the hybrid: real DAG subprocesses, no model calls."""
 import json
+import os
 from pathlib import Path
 import sqlite3
 import subprocess
@@ -21,10 +22,13 @@ class HybridPanelTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def call(self, *args):
+    def call(self, *args, env=None):
+        merged = dict(os.environ)
+        if env:
+            merged.update(env)
         return subprocess.run(['bash', str(RUNNER), *map(str, args)],
                               cwd=self.tmp.name, capture_output=True,
-                              text=True, timeout=180)
+                              text=True, timeout=180, env=merged)
 
     def start(self, skill='debate', rounds=2):
         args = [skill, 'the actual subject']
@@ -44,11 +48,23 @@ class HybridPanelTest(unittest.TestCase):
         name = self.state()['waiting']['name']
         return next(s for s in self.plan() if s['name'] == name)
 
+    def slate_body(self, n, prefix='voice'):
+        return json.dumps({'voices': [dict(voice=f'{prefix}-{i}', wants=f'want-{i}',
+                                               refused_by=f'{prefix}-{(i + 1) % n}',
+                                               changes_mind=f'evidence-{i}',
+                                               overreach=f'overreach-{i}')
+                                        for i in range(n)]})
+
     def submit(self, body=None):
         step = self.current()
         if body is None:
             if step.get('decision'):
                 body = json.dumps(dict(action='continue', reason='A distinct open tension remains.'))
+            elif step.get('slate'):
+                body = self.slate_body(step['slate'])
+            elif step.get('tally'):
+                body = json.dumps({'killed': [], 'moved': [],
+                                   'unresolved': [{'tension': 't', 'why_unresolved': 'needs evidence'}]})
             else:
                 body = f'Session-authored work for {step["name"]}; no required magic headings.\n'
         (self.session / step['artifact']).write_text(body)
@@ -190,7 +206,7 @@ class HybridPanelTest(unittest.TestCase):
         self.advance_to('round-1')
         result = self.submit('Status: magic\nNo scorecard grammar belongs here.')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertEqual(self.current()['name'], 'reflect-1')
+        self.assertEqual(self.current()['name'], 'tally-1')
 
     def test_changed_accepted_evidence_blocks_until_rewind(self):
         self.start()
@@ -211,6 +227,52 @@ class HybridPanelTest(unittest.TestCase):
         for body in ('broken', '[]', '{"action":"finish","reason":""}', '{"action":"maybe","reason":"x"}'):
             self.assertEqual(self.submit(body).returncode, 1)
             self.assertEqual(self.current()['name'], 'reflect-1')
+
+    def test_seats_slate_requires_full_distinct_justified_roster(self):
+        self.start(rounds=1)
+        self.advance_to('seats-1')
+        self.assertEqual(self.submit(self.slate_body(7)).returncode, 1)
+        self.assertEqual(self.current()['name'], 'seats-1')
+        dupes = json.loads(self.slate_body(8))
+        dupes['voices'][7]['voice'] = dupes['voices'][0]['voice']
+        self.assertEqual(self.submit(json.dumps(dupes)).returncode, 1)
+        self.assertEqual(self.current()['name'], 'seats-1')
+        hollow = json.loads(self.slate_body(8))
+        hollow['voices'][3]['changes_mind'] = '  '
+        self.assertEqual(self.submit(json.dumps(hollow)).returncode, 1)
+        self.assertEqual(self.current()['name'], 'seats-1')
+        self.assertEqual(self.submit('not json').returncode, 1)
+        self.assertEqual(self.current()['name'], 'seats-1')
+        result = self.submit(self.slate_body(8))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.current()['name'], 'round-1')
+
+    def test_tally_requires_a_declared_outcome(self):
+        self.start(rounds=1)
+        self.advance_to('tally-1')
+        silent = json.dumps({'killed': [], 'moved': [], 'unresolved': []})
+        self.assertEqual(self.submit(silent).returncode, 1)
+        self.assertEqual(self.current()['name'], 'tally-1')
+        self.assertEqual(self.submit('broken').returncode, 1)
+        self.assertEqual(self.current()['name'], 'tally-1')
+        kill = json.dumps({'killed': [{'claim': 'c', 'by': 'v', 'why': 'w'}],
+                           'moved': [], 'unresolved': []})
+        result = self.submit(kill)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(self.current()['name'], 'reflect-1')
+
+    def test_panel_size_env_override_resizes_the_slate(self):
+        self.session = Path(self.tmp.name) / 'sized'
+        result = self.call('debate', 'the actual subject', '1', self.session,
+                           env={'SKILLFLOW_PANEL_SIZE': '5'})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.advance_to('seats-1')
+        self.assertEqual(self.submit(self.slate_body(4)).returncode, 1)
+        result = self.submit(self.slate_body(5))
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        result = self.call('debate', 'bad size', '1', Path(self.tmp.name) / 'bad',
+                           env={'SKILLFLOW_PANEL_SIZE': 'nonsense'})
+        self.assertEqual(result.returncode, 2)
 
     def test_existing_session_and_invalid_rounds_are_rejected(self):
         self.start()

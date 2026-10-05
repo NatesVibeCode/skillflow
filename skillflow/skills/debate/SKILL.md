@@ -56,6 +56,9 @@ Do not invent consensus or falsely claim an objection was defeated.
 Write `record-N.md` with the useful crossfire, the claim's before/after, what died
 and why, survivors, evidence limits, and remaining tensions. Use `forced_by` or
 `objected_by` only if it makes causal provenance clearer, never as decoration.
+Then write `tally-N.json` with the round's declared outcome: `killed`, `moved`,
+and `unresolved` entries, each naming who and why. An honest empty round puts
+its reason in `unresolved`; silence is not an outcome.
 
 ## Let the crossfire change the next move
 

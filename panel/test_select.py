@@ -132,9 +132,19 @@ class SelectTest(unittest.TestCase):
 
     def test_size_bounds_rejected(self):
         self.assertEqual(
-            run_selector(self.db, "--tensions", "x", "--size", "2").returncode, 2)
+            run_selector(self.db, "--tensions", "x", "--size", "0").returncode, 2)
         self.assertEqual(
-            run_selector(self.db, "--tensions", "x", "--size", "6").returncode, 2)
+            run_selector(self.db, "--tensions", "x", "--size", "17").returncode, 2)
+
+    def test_large_room_seats_eight_and_repeats_families_last(self):
+        proc = run_selector(self.db, "--tensions", "risk", "--size", "8")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        room = json.loads(proc.stdout)["room"]
+        self.assertEqual(len(room), 8)
+        self.assertEqual(len({p["id"] for p in room}), 8)
+        families = [p["family"] for p in room]
+        self.assertEqual(len(set(families)), 5)
+        self.assertEqual(len(set(families[:5])), 5)
 
     def test_out_file(self):
         out = os.path.join(self.tmp.name, "room.json")

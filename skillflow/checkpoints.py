@@ -35,6 +35,21 @@ def _resume_command(session):
 SKILLS = ('debate', 'brainstorm', 'review', 'reframe', 'add-skill',
         'skill-dag')
 PAUSE_EXIT_CODE = 75
+PANEL_VOICES_DEFAULT = 8
+
+
+def _panel_size():
+    """Seats per activation. Operator override via SKILLFLOW_PANEL_SIZE."""
+    raw = os.environ.get('SKILLFLOW_PANEL_SIZE')
+    if raw is None or not raw.strip():
+        return PANEL_VOICES_DEFAULT
+    try:
+        size = int(raw.strip())
+    except ValueError:
+        raise ValueError('SKILLFLOW_PANEL_SIZE must be an integer 1-16')
+    if not 1 <= size <= 16:
+        raise ValueError('SKILLFLOW_PANEL_SIZE must be an integer 1-16')
+    return size
 
 
 def _custom_shape(skill):
@@ -112,12 +127,20 @@ def stages(skill, rounds):
             'summarize for you.')
         return result
     count = rounds if skill in ('debate', 'reframe') else 2
+    voices = _panel_size()
     for n in range(1, count + 1):
         add(f'activate-{n}', f'activation-{n}.md',
-            'Choose and read contrasting lens cards in-session. Activate them against this specimen: irritation, evidence, possible move, overreach. Reuse a useful voice; do not force cast rotation.', n)
+            f'Seat {voices} contrasting lenses in-session. Activate each against this specimen: irritation, what it wants that another seated voice refuses, evidence that would change its mind, possible move, overreach. A voice with nothing at stake is a costume; replace it. Reuse a useful voice; do not force cast rotation.', n)
+        result[-1]['voices'] = voices
+        add(f'seats-{n}', f'seats-{n}.json',
+            f'Declare the seated slate as JSON: {{"voices": [{{"voice", "wants", "refused_by", "changes_mind", "overreach"}}]}} with at least {voices} distinct voices and every field nonempty. The slate is the session\'s sworn roster: prose may not field voices the slate does not seat.', n)
+        result[-1]['slate'] = voices
         if skill == 'debate':
             add(f'round-{n}', f'record-{n}.md',
-                'Perform the crossfire in this conversation. Record the exchange, killed or mutated claims, survivors, and unresolved tensions. No conclusion before the collision.', n)
+                'Perform the crossfire in this conversation, in waves so objections land on each other. Record the exchange, killed or mutated claims, survivors, and unresolved tensions. If nothing died and nothing moved, declare that and why instead of staging agreement. No conclusion before the collision.', n)
+            add(f'tally-{n}', f'tally-{n}.json',
+                'Tally round {n} as JSON: {{"killed": [{{"claim", "by", "why"}}], "moved": [{{"claim", "by", "why"}}], "unresolved": [{{"tension", "why_unresolved"}}]}}. Declare at least one entry across the three lists; an honest empty round puts its reason in unresolved, never in silence.'.format(n=n), n)
+            result[-1]['tally'] = True
         elif skill == 'brainstorm':
             add(f'round-{n}', 'field.md' if n == 1 else 'record.md',
                 'Generate surprising mechanisms through the lenses; preserve the divergent field before judging it.' if n == 1 else
@@ -135,7 +158,7 @@ def stages(skill, rounds):
             add(f'reflect-{n}', f'decision-{n}.json',
                 'Judge the round yourself. Write {"action":"continue|finish|refuse","reason":"specific reason"}. Continue only if another round can change the result; otherwise finish. Refuse when the needed evidence or premise is absent. The DAG does not infer this for you.', n, True)
     add('finalize', 'final.md',
-        'Write the final answer yourself as the complete useful room: distinct contributions, live exchanges, and the judgment, residual, or next question they earned. Let its shape follow the conversation. Do not replace it with a process report, checklist, or model-selected residue. A refusal remains a refusal. The DAG will not summarize for you.')
+        'Write the final answer yourself as the complete useful room: distinct contributions, live exchanges, and the judgment, residual, or next question they earned. Name what changed between grounding and conclusion: whose mind moved, which claim died, what stayed unresolved and why. Let its shape follow the conversation. Do not replace it with a process report, checklist, or model-selected residue. A refusal remains a refusal. The DAG will not summarize for you.')
     return result
 
 
@@ -151,6 +174,58 @@ def write_json(path, value):
 
 def digest(path):
     return hashlib.sha256(path.read_bytes()).hexdigest() if path.exists() else None
+
+
+SLATE_FIELDS = ('voice', 'wants', 'refused_by', 'changes_mind', 'overreach')
+TALLY_LISTS = (('killed', ('claim', 'by', 'why')),
+               ('moved', ('claim', 'by', 'why')),
+               ('unresolved', ('tension', 'why_unresolved')))
+
+
+def _nonempty_str(value, where):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError(f'{where} must be a nonempty string')
+    return value.strip()
+
+
+def _check_slate(slate, required, name):
+    """The sworn roster: count, distinct voices, every opinion field present."""
+    if not isinstance(slate, dict) or not isinstance(slate.get('voices'), list):
+        raise ValueError('requires {"voices": [...]}')
+    voices = slate['voices']
+    if len(voices) < required:
+        raise ValueError(f'seats {len(voices)} voices, plan requires {required}')
+    seen = set()
+    for i, entry in enumerate(voices):
+        where = f'{name}.voices[{i}]'
+        if not isinstance(entry, dict):
+            raise ValueError(f'{where} must be an object')
+        for field in SLATE_FIELDS:
+            _nonempty_str(entry.get(field), f'{where}.{field}')
+        voice = entry['voice'].strip().lower()
+        if voice in seen:
+            raise ValueError(f'{where}.voice seats {entry["voice"]!r} twice')
+        seen.add(voice)
+
+
+def _check_tally(tally, name):
+    """The round must declare its outcome: killed, moved, or unresolved."""
+    if not isinstance(tally, dict):
+        raise ValueError('requires {"killed": [...], "moved": [...], "unresolved": [...]}')
+    total = 0
+    for list_name, fields in TALLY_LISTS:
+        entries = tally.get(list_name)
+        if not isinstance(entries, list):
+            raise ValueError(f'{name}.{list_name} must be a list')
+        for i, entry in enumerate(entries):
+            where = f'{name}.{list_name}[{i}]'
+            if not isinstance(entry, dict):
+                raise ValueError(f'{where} must be an object')
+            for field in fields:
+                _nonempty_str(entry.get(field), f'{where}.{field}')
+        total += len(entries)
+    if total == 0:
+        raise ValueError('declares nothing: put the reason in unresolved, never in silence')
 
 
 def rewind(session, target, state=None):
@@ -222,6 +297,19 @@ def gate(session, name):
     if actual == state['waiting']['prefilled']:
         print(f'PAUSE {name}: prefilled artifact has not been revised after the boundary: {path}')
         return PAUSE_EXIT_CODE
+    if stage.get('slate'):
+        try:
+            slate = read_json(path)
+            _check_slate(slate, stage['slate'], name)
+        except (ValueError, TypeError) as exc:
+            print(f'error: invalid slate at {name}: {exc}', file=sys.stderr)
+            return 1
+    if stage.get('tally'):
+        try:
+            _check_tally(read_json(path), name)
+        except (ValueError, TypeError) as exc:
+            print(f'error: invalid tally at {name}: {exc}', file=sys.stderr)
+            return 1
     if stage.get('decision'):
         try:
             choice = read_json(path)

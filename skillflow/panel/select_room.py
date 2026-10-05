@@ -2,8 +2,9 @@
 
 Reads the panelists table from the skillflow session DB (SKILLFLOW_DB),
 ranks panelists by token-overlap between the situation's tensions and each
-panelist's tags, then enforces diversity: at most one panelist per family,
-three to five seats. Score proposes; diversity disposes.
+panelist's tags, then enforces diversity: one panelist per family first,
+repeating families only to fill rooms larger than the family count, one
+to sixteen seats. Score proposes; diversity disposes; size decides.
 
 Usage:
     SKILLFLOW_DB=./session1/skillflow.db python3 -m skillflow.panel.select_room --tensions risk,measurement
@@ -17,7 +18,7 @@ import re
 import sqlite3
 import sys
 
-MIN_SEATS, MAX_SEATS = 3, 5
+MIN_SEATS, MAX_SEATS = 1, 16
 
 
 def tokens(text: str) -> set:
@@ -65,28 +66,32 @@ def select(panelists: list, tensions: list, size: int,
         key=lambda item: (-item[0], item[1].get("seated", 0),
                           stable_salt(item[1]["id"], tensions)),
     )
-    # Two passes: strict (no near-duplicate tag sets), then relaxed to fill.
-    room, used_families, seated_tags = [], set(), set()
+    # Two passes: strict (family-unique, no near-duplicate tag sets),
+    # then relaxed (families may repeat) to fill.
+    room, used_families, seated_tags, used_ids = [], set(), set(), set()
     for candidate in _pass(ranked, size, used_families, seated_tags,
-                           strict=True):
+                           used_ids, strict=True):
         room.append(candidate)
     for candidate in _pass(ranked, size - len(room), used_families,
-                           seated_tags, strict=False):
+                           seated_tags, used_ids, strict=False):
         room.append(candidate)
     return room
 
 
-def _pass(ranked, size, used_families, seated_tags, strict):
+def _pass(ranked, size, used_families, seated_tags, used_ids, strict):
     picked = []
     for _, candidate in ranked:
         if len(picked) >= size:
             break
-        if candidate["family"] in used_families:
+        if candidate["id"] in used_ids:
+            continue
+        if strict and candidate["family"] in used_families:
             continue
         mine = tag_tokens(candidate)
         if strict and len(mine & seated_tags) >= 2:
             continue
         picked.append(candidate)
+        used_ids.add(candidate["id"])
         used_families.add(candidate["family"])
         seated_tags |= mine
     return picked

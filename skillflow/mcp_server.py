@@ -219,14 +219,15 @@ def panel_select_room(db: str = "skillflow.db", tensions: str = "",
 
     `tensions` is comma-separated situation topics (e.g.
     "risk,measurement"); panelists are ranked by token overlap with their
-    tags, lens, and attributes, then diversity is enforced: one per family,
-    3-5 seats, near-duplicate tag sets skipped. Score ties rotate toward
-    rarely-seated panelists (see panel_record_seating). Pass `exclude_ids`
-    with earlier rooms' member ids to keep later rounds fresh. Requires
-    panel_seed to have run once on this DB.
+    tags, lens, and attributes, then diversity is enforced: one per family
+    first, repeating families only to fill rooms larger than the family
+    count, 1-16 seats, near-duplicate tag sets skipped. Score ties rotate
+    toward rarely-seated panelists (see panel_record_seating). Pass
+    `exclude_ids` with earlier rooms' member ids to keep later rounds
+    fresh. Requires panel_seed to have run once on this DB.
     """
-    if not 3 <= size <= 5:
-        return {"ok": False, "error": "--size must be 3-5"}
+    if not 1 <= size <= 16:
+        return {"ok": False, "error": "--size must be 1-16"}
     try:
         panelists = selector.load_panelists(db)
     except Exception as exc:  # noqa: BLE001 - surfaced as tool error
