@@ -1,9 +1,13 @@
 # Method
 
-1. Preserve the directly selected development target. Read its repository
-   instructions and owner boundaries. Keep same-named checkouts, worktrees,
-   snapshots, and archived donors distinct by full path.
-2. Map the current checkout, or explicitly selected collection roots. Use
+1. Write down the requested outcome and preserve the directly selected
+   development target. For business work, name the obligation, affected
+   business objects/resources, action, acceptance condition, and evidence
+   needed. Keep participant identity separate from the work. Read the selected
+   repository's instructions and owner boundaries. Keep same-named checkouts,
+   worktrees, snapshots, and archived donors distinct by full path.
+2. Bound discovery to the selected target and roots needed to answer that
+   outcome. Map the current checkout, or explicitly selected collection roots. Use
    `map`, `where`, and literal `search` to find capabilities and old/new naming
    variants. Search code, tests, readmes, agents, decisions, docs, config, and
    skills. Default discovery search has 50 total hits and five hits per
@@ -28,12 +32,19 @@
    `unknown` when identity, ownership, evidence, or scope is unresolved. Resolve
    that gap before dependent edits. Never silently switch the selected target.
 6. Maintain typed dictionary records and evidence links through the owner's
-   existing generation functions. Keep documentation a generated view. Describe
-   native contracts faithfully; a common dictionary is a shared description,
-   not a shared runtime or authority to unify incompatible repositories.
-   Process maps must include inputs, outputs, exact dependencies, effects,
-   failures, recovery, and evidence. Lab references point to actual definitions
-   and verification receipts; diagrams alone do not admit capabilities.
+   existing generation functions. Keep documentation a generated view. This
+   cross-repository development dictionary locates native definitions and
+   relationships; it does not define canonical business meaning, decide policy,
+   own shared resources, or establish accepted outcomes. For business rules,
+   preserve the chain from domain terms and trusted inputs to predicate, typed
+   decision, enforcing consumer, and evidence. ABAC eligibility does not replace
+   resource-owner enforcement of current state/effects or Process acceptance
+   and recovery. Describe native contracts faithfully; a common dictionary is a
+   shared description, not a shared runtime or authority to unify incompatible
+   repositories. Process maps must include inputs, outputs, exact dependencies,
+   effects, failures, recovery, and evidence. Lab references point to actual
+   definitions and verification receipts; diagrams alone do not admit
+   capabilities.
 
 ## Commands
 

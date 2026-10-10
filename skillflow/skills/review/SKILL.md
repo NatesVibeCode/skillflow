@@ -78,3 +78,13 @@ or the next proof. If not, explain why the evidence supported agreement; never
 stage a fake reversal. Reopen the affected phase if the review became generic
 findings, taste criticism, or unsupported reassurance. The DAG validates sequence,
 not correctness.
+
+## Scoped report helpers
+
+When the installed menu provides a matching session Tool, use `evidence_inspect`
+for captured references, `evidence_compare` for declared relationships,
+`provenance_trace` for supported operation projections, or `patch_assess` for an
+in-memory candidate assessment. The `session-tools` skill supplies public
+request examples. Read coverage and currentness before using the report in a
+finding. These reports support the review; they do not judge user intent or
+verify an owner's proof. Scope-refused or unsupported inputs stay explicit.
