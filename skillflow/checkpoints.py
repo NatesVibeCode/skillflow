@@ -426,9 +426,6 @@ def main(args=None):
         if len(args) < 2:
             raise ValueError(USAGE)
         skill, subject = args[:2]
-        if skill == 'repo-discover':
-            from skillflow.discovery import main as discovery_main
-            return discovery_main(args[1:])
         if skill not in SKILLS:
             if _custom_shape(skill) == 'prose':
                 root = os.environ.get('SKILLFLOW_SKILLS_ROOT', '.')

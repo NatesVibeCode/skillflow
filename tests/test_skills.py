@@ -206,6 +206,14 @@ class TestSkillStore(unittest.TestCase):
         self.assertIn("prose guide", result.stdout)
         self.assertFalse(os.path.exists(session))
 
+    def test_repo_discovery_does_not_require_a_workflow_or_receipt(self):
+        init_dir(self.store)
+        session = os.path.join(self.tmp.name, "discovery-session")
+        result = self._run_py("repo-discover", "find existing code", session)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("prose guide", result.stdout)
+        self.assertFalse(os.path.exists(session))
+
 
 if __name__ == "__main__":
     unittest.main()
