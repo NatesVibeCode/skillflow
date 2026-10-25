@@ -75,8 +75,10 @@ def project(skill, target, config=None):
     if shape not in ('prose', 'single', 'setup-execute'):
         raise ValueError('invalid source shape')
     shared = target.parent / '_shared'
-    outputs = [target / file.relative_to(source) for file in files] + [target / 'local.json', target / 'projection.json', shared / 'runner.json', shared / 'panelists.json']
-    outputs += [shared / p.name for p in (SOURCE / '_shared').iterdir() if p.is_file()]
+    outputs = [target / file.relative_to(source) for file in files] + [target / 'local.json', target / 'projection.json']
+    if shape != 'prose':
+        outputs += [shared / 'runner.json', shared / 'panelists.json']
+        outputs += [shared / p.name for p in (SOURCE / '_shared').iterdir() if p.is_file()]
     for destination in outputs:
         safe_destination(destination)
     target.mkdir(parents=True, exist_ok=True)
@@ -100,20 +102,21 @@ def project(skill, target, config=None):
         local = (json.dumps(config, indent=2) + '\n').encode()
         atomic_file(target / 'local.json', local)
         receipt['local_sha256'] = hashlib.sha256(local).hexdigest()
-    # Panel and functional skills share the native pause launcher. An explicit
-    # checkout pointer lets installed bundles run without installing a package.
-    shared.mkdir(parents=True, exist_ok=True)
-    for path in sorted((SOURCE / '_shared').iterdir()):
-        if path.is_file():
-            data = path.read_bytes()
-            atomic_file(shared / path.name, data, path.stat().st_mode & 0o777)
-            receipt['shared_files'][path.name] = hashlib.sha256(data).hexdigest()
-    roster = (SOURCE.parent / 'panel/panelists.json').read_bytes()
-    atomic_file(shared / 'panelists.json', roster)
-    receipt['shared_files']['panelists.json'] = hashlib.sha256(roster).hexdigest()
-    runner = (json.dumps({'runner': str(SOURCE.parents[1] / 'panel/run.sh')}, indent=2) + '\n').encode()
-    atomic_file(shared / 'runner.json', runner)
-    receipt['shared_files']['runner.json'] = hashlib.sha256(runner).hexdigest()
+    if shape != 'prose':
+        # Panel and functional skills share the native pause launcher. An explicit
+        # checkout pointer lets installed bundles run without installing a package.
+        shared.mkdir(parents=True, exist_ok=True)
+        for path in sorted((SOURCE / '_shared').iterdir()):
+            if path.is_file():
+                data = path.read_bytes()
+                atomic_file(shared / path.name, data, path.stat().st_mode & 0o777)
+                receipt['shared_files'][path.name] = hashlib.sha256(data).hexdigest()
+        roster = (SOURCE.parent / 'panel/panelists.json').read_bytes()
+        atomic_file(shared / 'panelists.json', roster)
+        receipt['shared_files']['panelists.json'] = hashlib.sha256(roster).hexdigest()
+        runner = (json.dumps({'runner': str(SOURCE.parents[1] / 'panel/run.sh')}, indent=2) + '\n').encode()
+        atomic_file(shared / 'runner.json', runner)
+        receipt['shared_files']['runner.json'] = hashlib.sha256(runner).hexdigest()
     atomic_file(target / 'projection.json', (json.dumps(receipt, indent=2) + '\n').encode())
     return receipt
 

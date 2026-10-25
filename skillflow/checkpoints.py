@@ -250,10 +250,6 @@ def rewind(session, target, state=None):
     state['waiting'] = None
     if state.get('stop', {}).get('index', -1) >= start:
         state.pop('stop', None)
-    workflow = session / 'workflow.json'
-    if workflow.is_file() and read_json(workflow).get('schema') == 'skillflow.discovery.v1':
-        from skillflow.discovery import invalidate_delivery
-        invalidate_delivery(session, archive, target)
     write_json(state_path, state)
     print(f'REOPENED: archived affected work at {archive}. Reopened {target}; resume in this same session.')
 
@@ -396,9 +392,6 @@ def main(args=None):
             return 0
         if args and args[0] == 'resume' and len(args) == 2:
             session = Path(args[1]).resolve()
-            if (session / 'workflow.json').is_file() and read_json(session / 'workflow.json').get('schema') == 'skillflow.discovery.v1':
-                from skillflow.discovery import resume
-                return resume(session)
             if not (session / 'checkpoints.json').is_file():
                 raise ValueError('not a hybrid panel session; resume old graphs with skillflow run in their original directory')
             return run(session)

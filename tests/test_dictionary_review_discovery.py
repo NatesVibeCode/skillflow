@@ -6,9 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 
-from skillflow import discovery
 
 ROOT = Path(__file__).resolve().parents[1]
 DISPATCH = ROOT / 'skillflow/skills/repo-discover/scripts/discover.py'
@@ -87,17 +85,6 @@ def source_exclusions(checkout_id, database=None):
                 self.assertIn('outside selected scope', result.stderr)
                 self.assertEqual(result.stdout, '')
 
-    def test_dag_gathers_reviews_and_exclusions(self):
-        calls = []
-        def gather(session, plan, operation, value=None):
-            calls.append(operation)
-            return {'rows': []}
-        with patch('skillflow.discovery.dictionary_call', side_effect=gather):
-            result = discovery.execute(self.root, 'dictionary', {'terms': []})
-        self.assertIn('research-reviews', calls)
-        self.assertIn('source-exclusions', calls)
-        self.assertIn('research-reviews', result)
-        self.assertIn('source-exclusions', result)
 
 
 if __name__ == '__main__':

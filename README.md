@@ -132,24 +132,20 @@ lone SKILL.md is insufficient. From a checkout, `bash panel/run.sh ...` is
 equivalent, and `scripts/install_panel_skills.py` additionally installs the
 repo-only authoring skill.
 
-### Repository discovery as executable work
+### Optional repository discovery
 
-`repo-discover` runs a functional DAG: scope → parallel map/lookup/search/dictionary
-queries → relationships/process steps → source freshness → packet assembly →
-session decision → session final answer → sealed receipt. The existing discovery
-CLI and dictionary query functions do the data work. Only ownership/reuse judgment
-and the useful final answer stay in the conversation. It launches no inference.
+`repo-discover` is a prose guide to the existing read-only discovery CLI and
+dictionary queries. Follow current source and actual callers; an index is a
+navigation aid. No discovery session, pause, decision file or receipt is needed.
 
 ```sh
-python3 ~/.codex/skills/_shared/run.py repo-discover "existing capability" /tmp/discovery-session --target /chosen/checkout --root /chosen/collection --term "APIName"
-python3 ~/.codex/skills/_shared/run.py resume /tmp/discovery-session
+python3 ~/.codex/skills/repo-discover/scripts/discover.py map --root /chosen/checkout --all --json
+python3 ~/.codex/skills/repo-discover/scripts/discover.py dictionary declarations ExactSymbol --root /chosen/checkout
 ```
 
-Configure installed `repo-discover/local.json` with `agent_orient` and
-`dictionary_directory` paths. The source bundle contains no operator paths or
-private data. Session artifacts and per-function receipts are JSON; execution
-dependencies/results live in `skillflow.db`. Inputs are hash-pinned, completed
-functions are retained on resume, and truncation/freshness remain explicit.
+Configure `repo-discover/local.json` with the selected `agent_orient` and
+`dictionary_directory` paths. Scope, snapshot time, truncation and coverage gaps
+remain explicit. Stale navigation does not prevent scoped source work.
 
 For native harness projections, `scripts/project_skill.py --skill NAME --target
 /native/skills/NAME --config-json /local/config.json` copies the complete bundle,
@@ -178,7 +174,7 @@ Omit `--shape` for a guided menu. The full contract ships in every store at
 
 Existing session DBs retain their graphs and can still use `skillflow run` from
 that session directory. Panel and authoring skills retain their hybrid pause
-loop; repo-discover runs the functional graph described above. The selector
+loop; repo-discover uses the direct commands described above. The selector
 and seed tools remain available for explicit standalone use and old sessions;
 the conversational skills no longer depend on them.
 
