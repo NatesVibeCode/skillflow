@@ -22,11 +22,12 @@ class ReviewDiscoveryTests(unittest.TestCase):
         self.first.mkdir()
         self.second.mkdir()
         dictionary = self.root / 'dictionary'
-        (dictionary / 'tools').mkdir(parents=True)
-        (dictionary / 'data').mkdir()
+        query_owner = self.first / 'docs/development-dictionary/tools'
+        query_owner.mkdir(parents=True)
+        (dictionary / 'data').mkdir(parents=True)
         # A small SQLite-backed query fixture keeps dispatcher boundary tests
         # portable; the real owner query module is checked separately on its DB.
-        (dictionary / 'tools/queries.py').write_text('''
+        (query_owner / 'queries.py').write_text('''
 import sqlite3
 def rows(sql, parameters=(), database=None):
     with sqlite3.connect(database) as db:

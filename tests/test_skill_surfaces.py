@@ -111,8 +111,9 @@ class SurfaceTests(unittest.TestCase):
 
     def test_declaration_limit_reports_hidden_rows_at_maximum(self):
         dictionary = self.root / 'dictionary'
-        (dictionary / 'tools').mkdir(parents=True)
-        (dictionary / 'tools/queries.py').write_text('''
+        query_owner = Path(self.config['agent_orient']) / 'docs/development-dictionary/tools'
+        query_owner.mkdir(parents=True)
+        (query_owner / 'queries.py').write_text('''
 def rows(sql, parameters=(), database=None):
     if 'COUNT(*)' in sql: return [{'n': 10001}]
     return [{'key': 'snapshot_at', 'value': 'snapshot'}]

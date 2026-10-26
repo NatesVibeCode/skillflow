@@ -44,7 +44,7 @@ def main():
     elif not 1 <= selected.limit <= 10000:
         query.error('--limit must be between 1 and 10000')
     directory = Path(config['dictionary_directory']).expanduser().resolve()
-    spec = importlib.util.spec_from_file_location('development_dictionary_queries', directory / 'tools/queries.py')
+    spec = importlib.util.spec_from_file_location('development_dictionary_queries', Path(config['agent_orient']) / 'docs/development-dictionary/tools/queries.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     database = directory / 'data/dictionary.sqlite'
