@@ -34,12 +34,14 @@ def main():
         return subprocess.call([str(cli), args.command, *args.arguments])
 
     query = argparse.ArgumentParser(prog='discover.py dictionary')
-    query.add_argument('operation', choices=['status', 'repositories', 'models', 'capabilities', 'processes', 'process-steps', 'terms', 'conflicts', 'scenarios', 'contracts', 'research-reviews', 'source-exclusions', 'declarations', 'neighbors', 'same-source', 'evidence'])
+    query.add_argument('operation', choices=['status', 'repositories', 'models', 'capabilities', 'processes', 'process-steps', 'terms', 'conflicts', 'scenarios', 'contracts', 'research-reviews', 'source-exclusions', 'declarations', 'neighbors', 'same-source', 'evidence', 'route', 'freshness', 'coverage'])
     query.add_argument('value', nargs='?')
     query.add_argument('--root', type=Path, action='append')
     query.add_argument('--limit', type=int, default=100)
     selected = query.parse_args(args.arguments)
-    if not 1 <= selected.limit <= 10000:
+    if selected.operation == 'route':
+        if selected.limit < 0:query.error('--limit must be nonnegative; zero means unlimited for route')
+    elif not 1 <= selected.limit <= 10000:
         query.error('--limit must be between 1 and 10000')
     directory = Path(config['dictionary_directory']).expanduser().resolve()
     spec = importlib.util.spec_from_file_location('development_dictionary_queries', directory / 'tools/queries.py')
@@ -55,7 +57,18 @@ def main():
     result = []
     total_matches = None
     operation = selected.operation
-    if operation == 'status':
+    if operation == 'coverage':
+        result=[module.checkout_coverage(root,database=database) for root in roots]
+    elif operation == 'route':
+        if not selected.value:query.error('route requires a symbol name')
+        if not ids:query.error('no recorded checkout matches this scope; use coverage and current source search')
+        route=module.symbol_route(selected.value,ids,limit=selected.limit,database=database)
+        print(json.dumps({'operation':operation,'roots':list(map(str,roots)),'metadata':snapshot,**route},indent=2))
+        return 0
+    elif operation == 'freshness':
+        result=[module.source_freshness(row['id'],row['path'],database=database) for row in checkouts if row['id'] in ids]
+        if not result:result=[module.checkout_coverage(root,database=database) for root in roots]
+    elif operation == 'status':
         result = [{'dictionary_directory': str(directory), 'database': str(database), 'selected_checkouts': len(ids)}]
     elif not ids:
         query.error('no recorded checkout matches this scope; map current roots and check snapshot coverage')
@@ -109,7 +122,10 @@ def main():
                 result = [row for row in module.same_source(path, database=database) if row['checkout_id'] in ids]
             else:
                 result = module.evidence_for_path(path, database=database)
-    print(json.dumps({'operation': operation, 'roots': list(map(str, roots)), 'metadata': snapshot,
+    freshness=getattr(module,'source_freshness',None)
+    currentness=([freshness(row['id'],row['path'],database=database) for row in checkouts if row['id'] in ids]
+                 if freshness else [{'status':'query_owner_without_freshness','detail':'This query owner does not expose source freshness; snapshot metadata is not a current-source check.'}])
+    print(json.dumps({'operation': operation, 'roots': list(map(str, roots)), 'metadata': snapshot,'currentness':currentness,
                       'truncated': (total_matches if total_matches is not None else len(result)) > selected.limit, 'limit': selected.limit,
                       'rows': result[:selected.limit]}, indent=2))
     return 0

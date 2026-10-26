@@ -82,7 +82,7 @@ def project(skill, target, config=None):
     for destination in outputs:
         safe_destination(destination)
     target.mkdir(parents=True, exist_ok=True)
-    receipt = {'schema': 'skillflow.projection.v1', 'skill': skill, 'shape': shape, 'source': str(source), 'files': {}, 'shared_files': {}}
+    receipt = {'schema': 'skillflow.projection.v1', 'skill': skill, 'shape': shape, 'source': str(source.relative_to(SOURCE.parents[1])), 'files': {}, 'shared_files': {}}
     for file in files:
         relative = file.relative_to(source)
         destination = target / relative

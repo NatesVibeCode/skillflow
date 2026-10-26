@@ -68,6 +68,7 @@ class SurfaceTests(unittest.TestCase):
             receipt = projector.project('sample', target)
         self.assertEqual(read_shape('sample', str(target.parent)), ('prose', None))
         self.assertEqual(receipt['shared_files'], {})
+        self.assertFalse(Path(receipt['source']).is_absolute())
         self.assertFalse((target.parent / '_shared').exists())
 
     def test_projected_description_with_colon_is_quoted(self):
